@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RatitaCraft</title>
+    <link rel="stylesheet" href="style.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://unpkg.com/three@0.160.0/build/three.module.js"
+        }
+    }
+    </script>
+    <script src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js"></script>
+    <script>
+        window.onerror = function(msg, url, line, col, err) {
+            var d = document.getElementById('debug');
+            if (d) { d.classList.add('error');
+                d.innerHTML = '<b>ERROR:</b> ' + msg + '<br>' + url + ':' + line; }
+        };
+        window.addEventListener('unhandledrejection', function(e) {
+            var d = document.getElementById('debug');
+            if (d) { d.classList.add('error');
+                d.innerHTML = '<b>ERROR:</b> ' + (e.reason ? e.reason.message || e.reason : e); }
+        });
+    </script>
+</head>
+<body>
+    <div id="menu">
+        <h1>🐀 RatitaCraft</h1>
+        <p>Click to play</p>
+        <div class="controls">
+            <h3>Controls</h3>
+            <ul>
+                <li><span class="key">W A S D</span> Move</li>
+                <li><span class="key">Space</span> Jump</li>
+                <li><span class="key">Shift</span> Sprint</li>
+                <li><span class="key">Mouse</span> Look around</li>
+                <li><span class="key">Left Click</span> Break block</li>
+                <li><span class="key">Right Click</span> Place block</li>
+                <li><span class="key">1-9</span> Select block</li>
+                <li><span class="key">Scroll</span> Cycle blocks</li>
+                <li><span class="key">F</span> Toggle fly mode</li>
+                <li><span class="key">T</span> Add AI agent</li>
+                <li><span class="key">ESC</span> Pause</li>
+            </ul>
+        </div>
+        <div class="features">
+            <h3>Features</h3>
+            <ul>
+                <li>Day/night cycle with stars</li>
+                <li>Procedural clouds</li>
+                <li>Caves & ore generation</li>
+                <li>Flowers & tall grass</li>
+                <li>Cute rats & AI agents</li>
+                <li>Multiplayer via PeerJS</li>
+                <li>Block breaking particles</li>
+                <li>Sound effects</li>
+            </ul>
+        </div>
+        <div class="multiplayer-section">
+            <h3>Multiplayer</h3>
+            <div class="mp-buttons">
+                <button id="btn-host" class="mp-btn">Host Game</button>
+                <div class="mp-join">
+                    <input id="join-code" type="text" placeholder="Room code" maxlength="12">
+                    <button id="btn-join" class="mp-btn">Join</button>
+                </div>
+            </div>
+            <div id="mp-status"></div>
+            <div id="room-code-display" style="display:none">
+                <span>Room: </span><code id="room-code"></code>
+                <button id="btn-copy" class="mp-btn small">Copy</button>
+            </div>
+        </div>
+    </div>
+    <div id="crosshair">
+        <svg width="24" height="24" viewBox="0 0 24 24">
+            <line x1="12" y1="4" x2="12" y2="10" stroke="white" stroke-width="2" opacity="0.8"/>
+            <line x1="12" y1="14" x2="12" y2="20" stroke="white" stroke-width="2" opacity="0.8"/>
+            <line x1="4" y1="12" x2="10" y2="12" stroke="white" stroke-width="2" opacity="0.8"/>
+            <line x1="14" y1="12" x2="20" y2="12" stroke="white" stroke-width="2" opacity="0.8"/>
+            <circle cx="12" cy="12" r="1" fill="white" opacity="0.6"/>
+        </svg>
+    </div>
+    <div id="hotbar"></div>
+    <div id="interaction-popup"></div>
+    <div id="debug"></div>
+    <script type="module" src="js/main.js?v=3"></script>
+</body>
+</html>
