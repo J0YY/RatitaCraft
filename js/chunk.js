@@ -95,7 +95,7 @@ export class Chunk {
 
                         let shouldRender = false;
                         if (isWater) {
-                            shouldRender = neighbor === BLOCK.AIR || TRANSPARENT.has(neighbor);
+                            shouldRender = (neighbor === BLOCK.AIR || TRANSPARENT.has(neighbor)) && neighbor !== BLOCK.WATER;
                         } else {
                             shouldRender = TRANSPARENT.has(neighbor) && neighbor !== block;
                         }

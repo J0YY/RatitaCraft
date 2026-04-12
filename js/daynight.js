@@ -78,7 +78,7 @@ export class DayNightCycle {
         cloudTex.wrapT = THREE.RepeatWrapping;
         const cloudMat = new THREE.MeshBasicMaterial({
             map: cloudTex, transparent: true, opacity: 0.5,
-            side: THREE.DoubleSide, depthWrite: false, depthTest: false
+            side: THREE.DoubleSide, depthWrite: false, depthTest: true
         });
         this.cloudLayer = new THREE.Mesh(cloudGeo, cloudMat);
         this.cloudLayer.rotation.x = -Math.PI / 2;

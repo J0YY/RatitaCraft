@@ -10,8 +10,10 @@ export class NetworkManager {
         this.onStatusChange = null;
         this.onPlayerJoin = null;
         this.onPlayerLeave = null;
+        this.onSeedReceived = null;
         this.syncTimer = 0;
         this.syncInterval = 1 / 20;
+        this._sentHello = new Set();
     }
 
     setStatus(msg) {
@@ -21,6 +23,7 @@ export class NetworkManager {
     }
 
     host() {
+        if (typeof Peer === 'undefined') { this.setStatus('Multiplayer unavailable - PeerJS not loaded'); return; }
         this.isHost = true;
         const id = 'ratita-' + Math.random().toString(36).substring(2, 8);
         this.roomCode = id;
@@ -42,11 +45,18 @@ export class NetworkManager {
         });
 
         this.peer.on('error', (err) => {
-            this.setStatus('Error: ' + err.type);
+            if (err.type === 'unavailable-id') {
+                this.roomCode = 'ratita-' + Math.random().toString(36).substring(2, 8);
+                this.peer.destroy();
+                this.host();
+            } else {
+                this.setStatus('Error: ' + err.type);
+            }
         });
     }
 
     join(code) {
+        if (typeof Peer === 'undefined') { this.setStatus('Multiplayer unavailable - refresh page'); return; }
         this.isHost = false;
         this.roomCode = code;
         this.setStatus('Connecting...');
@@ -66,8 +76,12 @@ export class NetworkManager {
         conn.on('open', () => {
             this.connections.set(conn.peer, conn);
             this.setStatus('Connected to ' + conn.peer);
-            if (this.onPlayerJoin) this.onPlayerJoin(conn.peer);
-            conn.send({ type: 'hello', name: 'Player' });
+            if (this.isHost) {
+                conn.send({ type: 'hello', name: 'Host', seed: this.world.seed });
+            } else {
+                conn.send({ type: 'hello', name: 'Player' });
+            }
+            this._sentHello.add(conn.peer);
         });
 
         conn.on('data', (data) => {
@@ -86,6 +100,10 @@ export class NetworkManager {
         switch (data.type) {
             case 'hello':
                 this.createRemotePlayer(peerId, data.name);
+                if (this.onPlayerJoin) this.onPlayerJoin(peerId, data.name);
+                if (data.seed !== undefined && !this.isHost) {
+                    if (this.onSeedReceived) this.onSeedReceived(data.seed);
+                }
                 break;
             case 'position':
                 if (this.remotePlayers.has(peerId)) {

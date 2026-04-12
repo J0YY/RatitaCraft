@@ -6,6 +6,7 @@ export class SoundManager {
     }
 
     init() {
+        if (this.ctx) return;
         try {
             this.ctx = new (window.AudioContext || window.webkitAudioContext)();
             this.masterGain = this.ctx.createGain();
@@ -86,5 +87,10 @@ export class SoundManager {
 
     land() {
         this.playNoise(0.12, 0, 300, 'lowpass', 0.08);
+    }
+
+    squeak() {
+        this.playTone(800 + Math.random() * 400, 0.12, 'sine', 0.08);
+        this.playTone(1200 + Math.random() * 200, 0.08, 'sine', 0.05);
     }
 }

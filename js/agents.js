@@ -93,7 +93,7 @@ export class AgentPlayer {
         nameCanvas.height = 48;
         const nctx = nameCanvas.getContext('2d');
         nctx.font = 'bold 24px monospace';
-        nctx.fillStyle = skin.shirt;
+        nctx.fillStyle = '#' + skin.shirt.toString(16).padStart(6, '0');
         nctx.textAlign = 'center';
         nctx.shadowColor = '#000000';
         nctx.shadowBlur = 4;
@@ -124,18 +124,64 @@ export class AgentPlayer {
         this.messageTimer = 0;
 
         this.bobTimer = 0;
+
+        this.speechBubble = null;
     }
 
     showMessage(msg, duration = 3) {
         this.message = msg;
         this.messageTimer = duration;
+        this.updateSpeechBubble();
+    }
+
+    updateSpeechBubble() {
+        if (this.speechBubble) {
+            this.group.remove(this.speechBubble);
+            this.speechBubble.material.map.dispose();
+            this.speechBubble.material.dispose();
+            this.speechBubble = null;
+        }
+        if (!this.message || this.messageTimer <= 0) return;
+
+        const c = document.createElement('canvas');
+        c.width = 256; c.height = 64;
+        const ctx = c.getContext('2d');
+
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.beginPath();
+        if (ctx.roundRect) {
+            ctx.roundRect(4, 4, 248, 56, 8);
+        } else {
+            ctx.rect(4, 4, 248, 56);
+        }
+        ctx.fill();
+
+        ctx.fillStyle = '#ffffff';
+        ctx.font = 'bold 18px monospace';
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(this.message, 128, 32);
+
+        const tex = new THREE.CanvasTexture(c);
+        const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
+        this.speechBubble = new THREE.Sprite(mat);
+        this.speechBubble.scale.set(2.0, 0.5, 1);
+        this.speechBubble.position.y = 2.7;
+        this.group.add(this.speechBubble);
     }
 
     update(dt, playerPos) {
         if (!this.alive) return;
+        dt = Math.min(dt, 0.05);
 
         this.stateTimer -= dt;
         this.messageTimer -= dt;
+        if (this.messageTimer <= 0 && this.speechBubble) {
+            this.group.remove(this.speechBubble);
+            this.speechBubble.material.map.dispose();
+            this.speechBubble.material.dispose();
+            this.speechBubble = null;
+        }
 
         if (this.stateTimer <= 0) {
             this.pickNewState(playerPos);
@@ -162,6 +208,7 @@ export class AgentPlayer {
         this.velocity.y += -25 * dt;
         this.group.position.y += this.velocity.y * dt;
 
+        this.onGround = false;
         const bx = Math.floor(this.group.position.x);
         const bz = Math.floor(this.group.position.z);
         const by = Math.floor(this.group.position.y);
@@ -264,8 +311,49 @@ export class AgentPlayer {
                 this.wanderCenter.z - nz
             ) + (Math.random() - 0.5);
         } else {
+            const px = this.group.position.x;
+            const pz = this.group.position.z;
             this.group.position.x = nx;
             this.group.position.z = nz;
+            this.collideHorizontal();
+            const movedX = Math.abs(this.group.position.x - px);
+            const movedZ = Math.abs(this.group.position.z - pz);
+            if (movedX < 0.0001 && movedZ < 0.0001) {
+                this.targetYaw += Math.PI * (0.5 + Math.random());
+            }
+        }
+    }
+
+    collideHorizontal() {
+        const hw = 0.2;
+        const minX = this.group.position.x - hw, maxX = this.group.position.x + hw;
+        const minY = this.group.position.y, maxY = this.group.position.y + 1.6;
+        const minZ = this.group.position.z - hw, maxZ = this.group.position.z + hw;
+
+        const bMinX = Math.floor(minX), bMaxX = Math.floor(maxX);
+        const bMinY = Math.floor(minY), bMaxY = Math.floor(maxY);
+        const bMinZ = Math.floor(minZ), bMaxZ = Math.floor(maxZ);
+
+        for (let bx = bMinX; bx <= bMaxX; bx++) {
+            for (let by = bMinY; by <= bMaxY; by++) {
+                for (let bz = bMinZ; bz <= bMaxZ; bz++) {
+                    if (!this.world.isBlockSolid(bx, by, bz)) continue;
+
+                    const overlapX = Math.min(maxX, bx + 1) - Math.max(minX, bx);
+                    const overlapZ = Math.min(maxZ, bz + 1) - Math.max(minZ, bz);
+
+                    if (overlapX <= 0 || overlapZ <= 0) continue;
+
+                    const testY = Math.min(maxY, by + 1) - Math.max(minY, by);
+                    if (testY <= 0) continue;
+
+                    if (overlapX < overlapZ) {
+                        this.group.position.x = (this.group.position.x > bx + 0.5) ? bx + 1 + hw : bx - hw;
+                    } else {
+                        this.group.position.z = (this.group.position.z > bz + 0.5) ? bz + 1 + hw : bz - hw;
+                    }
+                }
+            }
         }
     }
 
@@ -365,6 +453,12 @@ export class AgentPlayer {
 
     dispose() {
         this.alive = false;
+        if (this.speechBubble) {
+            this.group.remove(this.speechBubble);
+            this.speechBubble.material.map.dispose();
+            this.speechBubble.material.dispose();
+            this.speechBubble = null;
+        }
         this.scene.remove(this.group);
         this.group.traverse(child => {
             if (child.geometry) child.geometry.dispose();

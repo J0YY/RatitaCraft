@@ -9,7 +9,7 @@ class SimplexNoise {
         this.permMod12 = new Uint8Array(512);
         const p = new Uint8Array(256);
         for (let i = 0; i < 256; i++) p[i] = i;
-        let n = Math.abs(seed * 2147483647) | 1;
+        let n = (Math.abs(seed * 2147483647) | 1) >>> 0;
         for (let i = 255; i > 0; i--) {
             n = (n * 16807) % 2147483647;
             const j = n % (i + 1);

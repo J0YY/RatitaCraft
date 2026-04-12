@@ -1,8 +1,10 @@
 import * as THREE from 'three';
 import { CHUNK_HEIGHT } from './chunk.js';
-import { HOTBAR_BLOCKS, BLOCK, NON_SOLID } from './textures.js';
+import { HOTBAR_BLOCKS, BLOCK } from './textures.js';
 
 const GRAVITY = -28;
+const WATER_GRAVITY = -4;
+const SWIM_SPEED = 4;
 const JUMP_VEL = 9;
 const WALK_SPEED = 4.3;
 const SPRINT_SPEED = 6.5;
@@ -24,6 +26,7 @@ export class Player {
         this.wasOnGround = false;
         this.flying = false;
         this.sprinting = false;
+        this.inWater = false;
 
         this.keys = {};
         this.mouseDX = 0;
@@ -49,12 +52,14 @@ export class Player {
         this.onFootstep = null;
         this.onJump = null;
         this.onLand = null;
+        this.onSlotChange = null;
 
         document.addEventListener('keydown', (e) => {
             this.keys[e.code] = true;
             if (e.code === 'KeyF') this.flying = !this.flying;
             if (e.code >= 'Digit1' && e.code <= 'Digit9') {
                 this.selectedBlock = parseInt(e.code.charAt(5)) - 1;
+                if (this.onSlotChange) this.onSlotChange();
             }
         });
         document.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
@@ -96,10 +101,21 @@ export class Player {
         this.velocity.x = move.x;
         this.velocity.z = move.z;
 
+        this.inWater = this.world.getBlock(
+            Math.floor(this.position.x),
+            Math.floor(this.position.y + EYE_HEIGHT),
+            Math.floor(this.position.z)
+        ) === BLOCK.WATER;
+
         if (this.flying) {
             this.velocity.y = 0;
             if (this.keys['Space']) this.velocity.y = FLY_SPEED;
             if (this.keys['ShiftLeft'] || this.keys['ShiftRight']) this.velocity.y = -FLY_SPEED;
+        } else if (this.inWater) {
+            this.velocity.y += WATER_GRAVITY * dt;
+            this.velocity.y = Math.max(this.velocity.y, -3);
+            if (this.keys['Space']) this.velocity.y = SWIM_SPEED;
+            if (this.keys['ShiftLeft'] || this.keys['ShiftRight']) this.velocity.y = -SWIM_SPEED * 0.5;
         } else {
             this.velocity.y += GRAVITY * dt;
             if (this.keys['Space'] && this.onGround) {

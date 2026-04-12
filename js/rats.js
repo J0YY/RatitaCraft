@@ -68,9 +68,9 @@ export class Rat {
 
         const noseGeo = new THREE.BoxGeometry(0.05, 0.04, 0.04);
         const noseMat = new THREE.MeshLambertMaterial({ color: colors.nose });
-        const nose = new THREE.Mesh(noseGeo, noseMat);
-        nose.position.set(0, 0.18, -0.46);
-        this.group.add(nose);
+        this.nose = new THREE.Mesh(noseGeo, noseMat);
+        this.nose.position.set(0, 0.18, -0.46);
+        this.group.add(this.nose);
 
         const tailGeo = new THREE.BoxGeometry(0.03, 0.03, 0.45);
         const tailMat = new THREE.MeshLambertMaterial({ color: colors.tail });
@@ -126,6 +126,7 @@ export class Rat {
 
     update(dt) {
         if (!this.alive) return;
+        dt = Math.min(dt, 0.05);
 
         this.stateTimer -= dt;
         this.squeakTimer -= dt;
@@ -171,8 +172,16 @@ export class Rat {
                     this.wanderCenter.z - nz
                 ) + (Math.random() - 0.5);
             } else {
+                const px = this.group.position.x;
+                const pz = this.group.position.z;
                 this.group.position.x = nx;
                 this.group.position.z = nz;
+                this.collideHorizontal();
+                const movedX = Math.abs(this.group.position.x - px);
+                const movedZ = Math.abs(this.group.position.z - pz);
+                if (movedX < 0.0001 && movedZ < 0.0001) {
+                    this.targetAngle += Math.PI * (0.5 + Math.random());
+                }
             }
 
             const angleDiff = this.targetAngle - this.group.rotation.y;
@@ -183,7 +192,6 @@ export class Rat {
             this.wiggleLegs(dt * 10);
             this.wiggleTail(dt);
         } else if (this.state === 'sniff') {
-            this.group.position.z += Math.sin(performance.now() * 0.02) * 0.001;
             this.wiggleNose();
         } else {
             this.wiggleTail(dt * 2);
@@ -220,7 +228,34 @@ export class Rat {
 
     wiggleNose() {
         const s = 1 + Math.sin(performance.now() * 0.02) * 0.05;
-        this.group.children[6].scale.set(s, 1, s);
+        this.nose.scale.set(s, 1, s);
+    }
+
+    collideHorizontal() {
+        const hw = 0.15;
+        const minX = this.group.position.x - hw, maxX = this.group.position.x + hw;
+        const minY = this.group.position.y, maxY = this.group.position.y + 0.3;
+        const minZ = this.group.position.z - hw, maxZ = this.group.position.z + hw;
+
+        const bMinX = Math.floor(minX), bMaxX = Math.floor(maxX);
+        const bMinY = Math.floor(minY), bMaxY = Math.floor(maxY);
+        const bMinZ = Math.floor(minZ), bMaxZ = Math.floor(maxZ);
+
+        for (let bx = bMinX; bx <= bMaxX; bx++) {
+            for (let by = bMinY; by <= bMaxY; by++) {
+                for (let bz = bMinZ; bz <= bMaxZ; bz++) {
+                    if (!this.world.isBlockSolid(bx, by, bz)) continue;
+                    const overlapX = Math.min(maxX, bx + 1) - Math.max(minX, bx);
+                    const overlapZ = Math.min(maxZ, bz + 1) - Math.max(minZ, bz);
+                    if (overlapX <= 0 || overlapZ <= 0) continue;
+                    if (overlapX < overlapZ) {
+                        this.group.position.x = (this.group.position.x > bx + 0.5) ? bx + 1 + hw : bx - hw;
+                    } else {
+                        this.group.position.z = (this.group.position.z > bz + 0.5) ? bz + 1 + hw : bz - hw;
+                    }
+                }
+            }
+        }
     }
 
     pet() {
@@ -289,6 +324,10 @@ export class RatManager {
 
             const block = this.world.getBlock(Math.floor(sx), height, Math.floor(sz));
             if (block !== BLOCK.GRASS && block !== BLOCK.DIRT) continue;
+
+            const above1 = this.world.getBlock(Math.floor(sx), height + 1, Math.floor(sz));
+            const above2 = this.world.getBlock(Math.floor(sx), height + 2, Math.floor(sz));
+            if (above1 !== BLOCK.AIR || above2 !== BLOCK.AIR) continue;
 
             const rat = new Rat(this.scene, this.world, sx, height + 1, sz);
             this.rats.push(rat);

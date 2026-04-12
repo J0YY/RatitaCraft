@@ -10,6 +10,8 @@ import { RatManager } from './rats.js';
 import { AgentManager } from './agents.js';
 import { NetworkManager } from './network.js';
 import { RemotePlayerManager } from './remoteplayer.js';
+import { Minimap } from './minimap.js';
+import SimplexNoise from './noise.js';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87CEEB);
@@ -38,7 +40,8 @@ const waterMaterial = new THREE.MeshLambertMaterial({
     map: texture, side: THREE.DoubleSide, transparent: true, opacity: 0.6
 });
 
-const world = new World(scene);
+let worldSeed = undefined;
+const world = new World(scene, worldSeed);
 world.init({ solid: solidMaterial, water: waterMaterial });
 
 const player = new Player(camera, world);
@@ -49,9 +52,11 @@ const ratManager = new RatManager(scene, world);
 const agentManager = new AgentManager(scene, world);
 const remotePlayerManager = new RemotePlayerManager(scene);
 const network = new NetworkManager(world, player);
+const minimap = new Minimap(world);
 
 const startH = world.getHeight(8, 8);
-player.position.set(8, startH + 2, 8);
+const waterSurface = 21;
+player.position.set(8, Math.max(startH, waterSurface) + 2, 8);
 
 player.onBreak = (x, y, z, blockType) => {
     particles.emit(x, y, z, blockType);
@@ -65,6 +70,7 @@ player.onPlace = (x, y, z) => {
 player.onFootstep = () => { sound.footstep(); };
 player.onJump = () => { sound.jump(); };
 player.onLand = () => { sound.land(); };
+player.onSlotChange = () => { updateHotbar(); };
 
 const highlightGeo = new THREE.BoxGeometry(1.005, 1.005, 1.005);
 const highlightEdges = new THREE.EdgesGeometry(highlightGeo);
@@ -131,7 +137,28 @@ document.addEventListener('pointerlockchange', () => {
     crosshairEl.style.display = locked ? 'block' : 'none';
     hotbarEl.style.display = locked ? 'flex' : 'none';
     debugEl.style.display = locked ? 'block' : 'none';
+    minimap.canvas.style.display = locked ? 'block' : 'none';
 });
+
+function tryInteract() {
+    const forward = new THREE.Vector3(0, 0, -1);
+    forward.applyQuaternion(camera.quaternion);
+    const checkPos = camera.position.clone().add(forward.multiplyScalar(2.5));
+
+    const nearRat = ratManager.getRatAt(checkPos, 2.5);
+    if (nearRat && nearRat.pet()) {
+        sound.squeak();
+        showInteraction(`Pet ${nearRat.name}! Squeak!`, true);
+        return;
+    }
+
+    const nearAgent = agentManager.getAgentAt(checkPos, 3.5);
+    if (nearAgent) {
+        nearAgent.interact();
+        sound.playTone(400, 0.1, 'sine', 0.06);
+        return;
+    }
+}
 
 document.addEventListener('keydown', (e) => {
     if (!locked) return;
@@ -141,34 +168,16 @@ document.addEventListener('keydown', (e) => {
             agent.showMessage('Hello!', 3);
         }
     }
+    if (e.code === 'KeyE') {
+        tryInteract();
+    }
 });
 
 document.addEventListener('mousedown', (e) => {
     if (!locked) return;
     sound.resume();
 
-    if (e.button === 0) {
-        const forward = new THREE.Vector3(0, 0, -1);
-        forward.applyQuaternion(camera.quaternion);
-        const checkPos = camera.position.clone().add(forward.multiplyScalar(2.5));
-
-        const nearRat = ratManager.getRatAt(checkPos, 2.5);
-        if (nearRat) {
-            nearRat.pet();
-            sound.playTone(600, 0.15, 'sine', 0.08);
-            showInteraction(`Pet ${nearRat.name}! Squeak!`);
-            return;
-        }
-
-        const nearAgent = agentManager.getAgentAt(checkPos, 3.5);
-        if (nearAgent) {
-            nearAgent.interact();
-            sound.playTone(400, 0.1, 'sine', 0.06);
-            return;
-        }
-
-        player.breakBlock();
-    }
+    if (e.button === 0) player.breakBlock();
     if (e.button === 2) player.placeBlock();
 });
 document.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -186,13 +195,15 @@ window.addEventListener('resize', () => {
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
 
-function showInteraction(msg) {
+function showInteraction(msg, forced = false) {
     interactionEl.textContent = msg;
     interactionEl.style.display = 'block';
+    showInteraction._forced = forced;
     clearTimeout(showInteraction._timer);
     showInteraction._timer = setTimeout(() => {
         interactionEl.style.display = 'none';
-    }, 2000);
+        showInteraction._forced = false;
+    }, forced ? 2000 : 500);
 }
 
 document.getElementById('btn-host').addEventListener('click', (e) => {
@@ -215,11 +226,26 @@ document.getElementById('btn-copy').addEventListener('click', (e) => {
     });
 });
 
-network.onPlayerJoin = (peerId) => {
-    remotePlayerManager.createPlayer(peerId);
+network.onPlayerJoin = (peerId, name) => {
+    remotePlayerManager.createPlayer(peerId, name);
 };
 network.onPlayerLeave = (peerId) => {
     remotePlayerManager.removePlayer(peerId);
+};
+network.onSeedReceived = (seed) => {
+    world.seed = seed;
+    world.noise = new SimplexNoise(seed);
+    world.noise2 = new SimplexNoise(seed + 1);
+    world.noise3 = new SimplexNoise(seed + 2);
+    world.noise4 = new SimplexNoise(seed + 3);
+    world.noise5 = new SimplexNoise(seed + 4);
+    world.noise6 = new SimplexNoise(seed + 5);
+    for (const chunk of world.chunks.values()) {
+        chunk.dispose(scene);
+    }
+    world.chunks.clear();
+    const h = world.getHeight(Math.floor(player.position.x), Math.floor(player.position.z));
+    player.position.y = h + 2;
 };
 
 setupHotbar();
@@ -250,6 +276,13 @@ function gameLoop() {
     agentManager.update(dt, player.position);
     network.update(dt, remotePlayerManager);
 
+    const remotePositions = [];
+    for (const [pid, rp] of network.remotePlayers) {
+        remotePositions.push({ x: rp.targetPos.x, z: rp.targetPos.z });
+    }
+    minimap.update(dt, player.position, agentManager.agents, ratManager.rats);
+    minimap.setRemotePlayers(remotePositions);
+
     if (locked) {
         const forward = new THREE.Vector3(0, 0, -1);
         forward.applyQuaternion(camera.quaternion);
@@ -258,11 +291,13 @@ function gameLoop() {
         const nearRat = ratManager.getRatAt(checkPos, 3);
         const nearAgent = agentManager.getAgentAt(checkPos, 4);
 
-        if (nearRat) {
-            showInteraction(`Left click to pet ${nearRat.name}`);
+        if (showInteraction._forced) {
+            // don't overwrite forced popup
+        } else if (nearRat) {
+            showInteraction(`Press E to pet ${nearRat.name}`);
         } else if (nearAgent) {
-            showInteraction(`Left click to talk to ${nearAgent.name}`);
-        } else if (interactionEl.style.display === 'block' && !showInteraction._forced) {
+            showInteraction(`Press E to talk to ${nearAgent.name}`);
+        } else if (interactionEl.style.display === 'block') {
             interactionEl.style.display = 'none';
         }
     }
@@ -292,7 +327,7 @@ function gameLoop() {
     const rats = ratManager.rats.length;
     const agents = agentManager.agents.length;
     const players = network.connections.size;
-    debugEl.innerHTML = `FPS: ${fps}<br>XYZ: ${player.position.x.toFixed(1)} ${player.position.y.toFixed(1)} ${player.position.z.toFixed(1)}<br>Chunk: ${cx} ${cz}<br>Time: ${dayNight.getTimeString()}${player.flying ? '<br>FLYING' : ''}<br>Rats: ${rats} | Agents: ${agents} | Players: ${players}${agentMsgStr}`;
+    debugEl.innerHTML = `FPS: ${fps}<br>XYZ: ${player.position.x.toFixed(1)} ${player.position.y.toFixed(1)} ${player.position.z.toFixed(1)}<br>Chunk: ${cx} ${cz}<br>Time: ${dayNight.getTimeString()}${player.flying ? '<br>FLYING' : ''}${player.inWater ? '<br>SWIMMING' : ''}<br>Rats: ${rats} | Agents: ${agents} | Players: ${players}${agentMsgStr}`;
 
     renderer.render(scene, camera);
 } catch (e) {

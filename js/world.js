@@ -7,10 +7,10 @@ const RENDER_DISTANCE = 6;
 const SEA_LEVEL = 20;
 
 export class World {
-    constructor(scene) {
+    constructor(scene, seed) {
         this.scene = scene;
         this.chunks = new Map();
-        this.seed = Math.random() * 10000;
+        this.seed = seed !== undefined ? seed : Math.random() * 10000;
         this.noise = new SimplexNoise(this.seed);
         this.noise2 = new SimplexNoise(this.seed + 1);
         this.noise3 = new SimplexNoise(this.seed + 2);
@@ -106,7 +106,7 @@ export class World {
 
                     if (y === 0) {
                         block = BLOCK.BEDROCK;
-                    } else if (y < 3 && Math.random() < 0.5) {
+                    } else if (y < 3 && this.noise.noise2D(wx * 5.3 + y * 7.1, wz * 5.3) > 0) {
                         block = BLOCK.BEDROCK;
                     } else if (y < height - 4) {
                         if (this.isCave(wx, y, wz)) {
@@ -246,13 +246,17 @@ export class World {
             }
         }
 
-        let built = 0;
+        const toDelete = [];
         for (const [key, chunk] of this.chunks) {
             if (!needed.has(key)) {
                 chunk.dispose(this.scene);
-                this.chunks.delete(key);
-                continue;
+                toDelete.push(key);
             }
+        }
+        for (const key of toDelete) this.chunks.delete(key);
+
+        let built = 0;
+        for (const [key, chunk] of this.chunks) {
             if (chunk.dirty) {
                 chunk.buildMesh(this.scene, this.material, this.waterMaterial);
                 built++;
