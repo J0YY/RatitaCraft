@@ -136,7 +136,7 @@ let locked = false;
 let interactionMenuOpen = false;
 
 menuEl.addEventListener('click', (e) => {
-    if (e.target.closest('.multiplayer-section') || e.target.closest('.save-section') || e.target.closest('.customize-section')) return;
+    if (e.target.closest('button, input, select')) return;
     e.stopPropagation();
     renderer.domElement.requestPointerLock();
     sound.init();
@@ -336,10 +336,10 @@ document.getElementById('btn-save').addEventListener('click', (e) => {
     if (name) {
         document.getElementById('btn-save').textContent = 'Saved!';
         populateLoadSelect();
-        setTimeout(() => { document.getElementById('btn-save').textContent = 'Save World'; }, 1500);
+        setTimeout(() => { document.getElementById('btn-save').textContent = 'Save'; }, 1500);
     } else {
         document.getElementById('btn-save').textContent = 'Failed!';
-        setTimeout(() => { document.getElementById('btn-save').textContent = 'Save World'; }, 1500);
+        setTimeout(() => { document.getElementById('btn-save').textContent = 'Save'; }, 1500);
     }
 });
 

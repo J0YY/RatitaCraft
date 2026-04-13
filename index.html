@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>RatitaCraft</title>
+    <title>RatitaCraft 💕</title>
     <link rel="stylesheet" href="style.css">
     <script type="importmap">
     {
@@ -28,69 +28,89 @@
 </head>
 <body>
     <div id="menu">
-        <h1>🐀 RatitaCraft</h1>
-        <p>Click to play</p>
-        <div class="controls">
-            <h3>Controls</h3>
-            <ul>
-                <li><span class="key">W A S D</span> Move</li>
-                <li><span class="key">Space</span> Jump / Swim up</li>
-                <li><span class="key">Shift</span> Sprint / Dive</li>
-                <li><span class="key">Mouse</span> Look around</li>
-                <li><span class="key">Left Click</span> Break block</li>
-                <li><span class="key">Right Click</span> Place block</li>
-                <li><span class="key">1-9</span> Select block</li>
-                <li><span class="key">Scroll</span> Cycle blocks</li>
-                <li><span class="key">F</span> Toggle fly mode</li>
-                <li><span class="key">T</span> Add AI agent</li>
-                <li><span class="key">E</span> Interact menu</li>
-                <li><span class="key">ESC</span> Pause</li>
-            </ul>
+        <div class="menu-header">
+            <h1>🐀 RatitaCraft</h1>
+            <p class="subtitle">built with love for joy & socratito 🧀</p>
         </div>
-        <div class="customize-section">
-            <h3>Character</h3>
-            <div class="custom-row">
-                <label>Name</label>
-                <input id="player-name" type="text" value="Player" maxlength="16">
-            </div>
-            <div class="custom-row">
-                <label>Hair</label>
-                <input id="hair-color" type="color" value="#4A3728">
-            </div>
-            <div class="custom-row">
-                <label>Shirt</label>
-                <input id="shirt-color" type="color" value="#4488CC">
-            </div>
-            <div class="custom-row">
-                <label>Pants</label>
-                <input id="pants-color" type="color" value="#334488">
-            </div>
-        </div>
-        <div class="multiplayer-section">
-            <h3>Multiplayer</h3>
-            <div class="mp-buttons">
-                <button id="btn-host" class="mp-btn">Host Game</button>
-                <div class="mp-join">
-                    <input id="join-code" type="text" placeholder="Room code" maxlength="12">
-                    <button id="btn-join" class="mp-btn">Join</button>
+
+        <div class="menu-grid">
+            <div class="menu-col">
+                <div class="panel">
+                    <h3>🎮 Controls</h3>
+                    <div class="ctrl-grid">
+                        <span class="key">WASD</span><span>Move</span>
+                        <span class="key">Space</span><span>Jump / Swim</span>
+                        <span class="key">Shift</span><span>Sprint / Dive</span>
+                        <span class="key">LClick</span><span>Break block</span>
+                        <span class="key">RClick</span><span>Place block</span>
+                        <span class="key">E</span><span>Interact</span>
+                        <span class="key">T</span><span>Spawn agent</span>
+                        <span class="key">F</span><span>Fly mode</span>
+                        <span class="key">1-9</span><span>Hotbar</span>
+                        <span class="key">ESC</span><span>Pause</span>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>👤 Character</h3>
+                    <div class="custom-row">
+                        <label>Name</label>
+                        <input id="player-name" type="text" value="Player" maxlength="16">
+                    </div>
+                    <div class="color-row">
+                        <div class="color-pick">
+                            <label>Hair</label>
+                            <input id="hair-color" type="color" value="#4A3728">
+                        </div>
+                        <div class="color-pick">
+                            <label>Shirt</label>
+                            <input id="shirt-color" type="color" value="#4488CC">
+                        </div>
+                        <div class="color-pick">
+                            <label>Pants</label>
+                            <input id="pants-color" type="color" value="#334488">
+                        </div>
+                    </div>
                 </div>
             </div>
-            <div id="mp-status"></div>
-            <div id="room-code-display" style="display:none">
-                <span>Room: </span><code id="room-code"></code>
-                <button id="btn-copy" class="mp-btn small">Copy</button>
+
+            <div class="menu-col">
+                <div class="panel">
+                    <h3>🌐 Multiplayer</h3>
+                    <div class="mp-buttons">
+                        <button id="btn-host" class="mp-btn accent">Host Game</button>
+                        <button id="btn-join" class="mp-btn">Join</button>
+                        <input id="join-code" type="text" placeholder="Room code" maxlength="12">
+                    </div>
+                    <div id="mp-status"></div>
+                    <div id="room-code-display" style="display:none">
+                        <span>Room: </span><code id="room-code"></code>
+                        <button id="btn-copy" class="mp-btn small">Copy</button>
+                    </div>
+                    <p class="hint">share the room code with socratito so he can join! 💕</p>
+                </div>
+
+                <div class="panel">
+                    <h3>💾 World</h3>
+                    <div class="mp-buttons">
+                        <button id="btn-save" class="mp-btn">Save</button>
+                        <select id="load-select"><option value="">Load world...</option></select>
+                        <button id="btn-load" class="mp-btn">Load</button>
+                        <button id="btn-delete" class="mp-btn danger">Del</button>
+                    </div>
+                </div>
+
+                <div class="panel cute-panel">
+                    <p>🐀 rats spawn in the wild — be nice to them!</p>
+                    <p>🧀 agents love cheese-themed conversations</p>
+                    <p>😘 press E near someone to interact</p>
+                </div>
             </div>
         </div>
-        <div class="save-section">
-            <h3>World</h3>
-            <div class="mp-buttons">
-                <button id="btn-save" class="mp-btn">Save World</button>
-                <select id="load-select"><option value="">Load world...</option></select>
-                <button id="btn-load" class="mp-btn">Load</button>
-                <button id="btn-delete" class="mp-btn">Delete</button>
-            </div>
-        </div>
+
+        <p class="click-prompt">click anywhere to play ✨</p>
     </div>
+
     <div id="crosshair">
         <svg width="24" height="24" viewBox="0 0 24 24">
             <line x1="12" y1="4" x2="12" y2="10" stroke="white" stroke-width="2" opacity="0.8"/>
@@ -113,6 +133,6 @@
         </div>
     </div>
     <div id="debug"></div>
-    <script type="module" src="js/main.js?v=6"></script>
+    <script type="module" src="js/main.js?v=7"></script>
 </body>
 </html>
