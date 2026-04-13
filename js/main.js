@@ -11,6 +11,9 @@ import { AgentManager } from './agents.js';
 import { NetworkManager } from './network.js';
 import { RemotePlayerManager } from './remoteplayer.js';
 import { Minimap } from './minimap.js';
+import { askGLM } from './chat.js';
+import { saveWorld, loadWorldData, deleteWorld, populateLoadSelect } from './saveload.js';
+import { Chunk } from './chunk.js';
 import SimplexNoise from './noise.js';
 
 const scene = new THREE.Scene();
@@ -83,6 +86,14 @@ const crosshairEl = document.getElementById('crosshair');
 const hotbarEl = document.getElementById('hotbar');
 const debugEl = document.getElementById('debug');
 const interactionEl = document.getElementById('interaction-popup');
+const interactionMenu = document.getElementById('interaction-menu');
+
+let interactionTarget = null;
+let interactionType = null;
+
+function getPlayerName() {
+    return document.getElementById('player-name').value || 'Player';
+}
 
 function setupHotbar() {
     hotbarEl.innerHTML = '';
@@ -122,9 +133,10 @@ function updateHotbar() {
 }
 
 let locked = false;
+let interactionMenuOpen = false;
 
 menuEl.addEventListener('click', (e) => {
-    if (e.target.closest('.multiplayer-section')) return;
+    if (e.target.closest('.multiplayer-section') || e.target.closest('.save-section') || e.target.closest('.customize-section')) return;
     e.stopPropagation();
     renderer.domElement.requestPointerLock();
     sound.init();
@@ -133,50 +145,142 @@ menuEl.addEventListener('click', (e) => {
 
 document.addEventListener('pointerlockchange', () => {
     locked = !!document.pointerLockElement;
+    if (interactionMenuOpen) return;
     menuEl.style.display = locked ? 'none' : 'flex';
     crosshairEl.style.display = locked ? 'block' : 'none';
     hotbarEl.style.display = locked ? 'flex' : 'none';
     debugEl.style.display = locked ? 'block' : 'none';
     minimap.canvas.style.display = locked ? 'block' : 'none';
+    if (!locked) {
+        interactionMenu.style.display = 'none';
+        interactionTarget = null;
+    }
 });
 
-function tryInteract() {
+function findInteractionTarget() {
     const forward = new THREE.Vector3(0, 0, -1);
     forward.applyQuaternion(camera.quaternion);
     const checkPos = camera.position.clone().add(forward.multiplyScalar(2.5));
 
     const nearRat = ratManager.getRatAt(checkPos, 2.5);
-    if (nearRat && nearRat.pet()) {
-        sound.squeak();
-        showInteraction(`Pet ${nearRat.name}! Squeak!`, true);
-        return;
-    }
+    if (nearRat) return { type: 'rat', target: nearRat };
 
     const nearAgent = agentManager.getAgentAt(checkPos, 3.5);
-    if (nearAgent) {
-        nearAgent.interact();
-        sound.playTone(400, 0.1, 'sine', 0.06);
-        return;
+    if (nearAgent) return { type: 'agent', target: nearAgent };
+
+    return null;
+}
+
+function openInteractionMenu() {
+    const found = findInteractionTarget();
+    if (!found) return;
+
+    interactionTarget = found.target;
+    interactionType = found.type;
+    interactionMenuOpen = true;
+
+    const title = interactionMenu.querySelector('.im-title');
+    title.textContent = found.type === 'rat' ? `🐀 ${found.target.name}` : `🧑 ${found.target.name}`;
+    interactionMenu.style.display = 'block';
+    document.exitPointerLock();
+    setTimeout(() => {
+        const chatInput = document.getElementById('chat-input');
+        if (chatInput) chatInput.focus();
+    }, 100);
+}
+
+function closeInteractionMenu() {
+    interactionMenu.style.display = 'none';
+    interactionTarget = null;
+    interactionType = null;
+    interactionMenuOpen = false;
+    renderer.domElement.requestPointerLock();
+}
+
+interactionMenu.querySelectorAll('.im-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (!interactionTarget) return;
+
+        const action = btn.dataset.action;
+        if (interactionType === 'agent') {
+            if (action === 'hit') {
+                interactionTarget.hit();
+                sound.playTone(200, 0.15, 'square', 0.08);
+            } else if (action === 'kiss') {
+                interactionTarget.kiss();
+                sound.playTone(600, 0.2, 'sine', 0.06);
+            } else if (action === 'wave') {
+                interactionTarget.wave();
+                sound.playTone(440, 0.1, 'sine', 0.05);
+            }
+            network.sendInteraction(action, 'agent', interactionTarget.name, undefined, getPlayerName());
+        } else if (interactionType === 'rat') {
+            if (action === 'wave') {
+                showInteraction(`${interactionTarget.name} squeaks at you!`, true);
+                sound.squeak();
+            } else if (action === 'hit') {
+                showInteraction(`${interactionTarget.name} runs away!`, true);
+                sound.playTone(200, 0.1, 'square', 0.06);
+            }
+        }
+        closeInteractionMenu();
+    });
+});
+
+document.getElementById('chat-send').addEventListener('click', (e) => {
+    e.stopPropagation();
+    sendChatMessage();
+});
+
+document.getElementById('chat-input').addEventListener('keydown', (e) => {
+    e.stopPropagation();
+    if (e.code === 'Enter') sendChatMessage();
+});
+
+async function sendChatMessage() {
+    const input = document.getElementById('chat-input');
+    const msg = input.value.trim();
+    if (!msg || !interactionTarget) return;
+    input.value = '';
+
+    const target = interactionTarget;
+    const iType = interactionType;
+
+    if (iType === 'agent') {
+        target.showMessage(`You: ${msg}`, 5);
+        network.sendInteraction('message', 'agent', target.name, msg, getPlayerName());
+
+        const response = await askGLM(target.name, getPlayerName(), msg);
+        if (target.alive) {
+            target.showMessage(response, 6);
+        }
     }
+    closeInteractionMenu();
 }
 
 document.addEventListener('keydown', (e) => {
     if (!locked) return;
     if (e.code === 'KeyT') {
         const agent = agentManager.spawnAgent(player.position);
-        if (agent) {
-            agent.showMessage('Hello!', 3);
-        }
+        if (agent) agent.showMessage('Hello!', 3);
     }
     if (e.code === 'KeyE') {
-        tryInteract();
+        if (interactionMenu.style.display === 'block') {
+            closeInteractionMenu();
+        } else {
+            openInteractionMenu();
+        }
+    }
+    if (e.code === 'Escape' && interactionMenu.style.display === 'block') {
+        closeInteractionMenu();
     }
 });
 
 document.addEventListener('mousedown', (e) => {
     if (!locked) return;
+    if (interactionMenu.style.display === 'block') return;
     sound.resume();
-
     if (e.button === 0) player.breakBlock();
     if (e.button === 2) player.placeBlock();
 });
@@ -226,6 +330,60 @@ document.getElementById('btn-copy').addEventListener('click', (e) => {
     });
 });
 
+document.getElementById('btn-save').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const name = saveWorld(world, player.position, world.seed);
+    if (name) {
+        document.getElementById('btn-save').textContent = 'Saved!';
+        populateLoadSelect();
+        setTimeout(() => { document.getElementById('btn-save').textContent = 'Save World'; }, 1500);
+    } else {
+        document.getElementById('btn-save').textContent = 'Failed!';
+        setTimeout(() => { document.getElementById('btn-save').textContent = 'Save World'; }, 1500);
+    }
+});
+
+document.getElementById('btn-load').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const ts = document.getElementById('load-select').value;
+    if (!ts) return;
+    const saves = JSON.parse(localStorage.getItem('ratitacraft_saves') || '[]');
+    const save = saves.find(s => s.timestamp === parseInt(ts));
+    if (!save) return;
+
+    world.seed = save.seed;
+    world.noise = new SimplexNoise(save.seed);
+    world.noise2 = new SimplexNoise(save.seed + 1);
+    world.noise3 = new SimplexNoise(save.seed + 2);
+    world.noise4 = new SimplexNoise(save.seed + 3);
+    world.noise5 = new SimplexNoise(save.seed + 4);
+    world.noise6 = new SimplexNoise(save.seed + 5);
+    for (const chunk of world.chunks.values()) chunk.dispose(scene);
+    world.chunks.clear();
+
+    const chunksData = loadWorldData(parseInt(ts));
+    if (chunksData) {
+        for (const cd of chunksData) {
+            const chunk = new Chunk(cd.cx, cd.cz, world);
+            chunk.blocks = new Uint8Array(cd.blocks);
+            chunk.dirty = true;
+            world.chunks.set(world.key(cd.cx, cd.cz), chunk);
+        }
+    }
+    world.update(save.playerX, save.playerZ);
+    player.position.set(save.playerX, save.playerY, save.playerZ);
+});
+
+document.getElementById('btn-delete').addEventListener('click', (e) => {
+    e.stopPropagation();
+    const ts = document.getElementById('load-select').value;
+    if (!ts) return;
+    deleteWorld(parseInt(ts));
+    populateLoadSelect();
+});
+
+populateLoadSelect();
+
 network.onPlayerJoin = (peerId, name) => {
     remotePlayerManager.createPlayer(peerId, name);
 };
@@ -240,12 +398,24 @@ network.onSeedReceived = (seed) => {
     world.noise4 = new SimplexNoise(seed + 3);
     world.noise5 = new SimplexNoise(seed + 4);
     world.noise6 = new SimplexNoise(seed + 5);
-    for (const chunk of world.chunks.values()) {
-        chunk.dispose(scene);
-    }
+    for (const chunk of world.chunks.values()) chunk.dispose(scene);
     world.chunks.clear();
     const h = world.getHeight(Math.floor(player.position.x), Math.floor(player.position.z));
     player.position.y = h + 2;
+};
+
+network.onInteraction = (data) => {
+    const fromName = data.from || 'Player';
+    if (data.action === 'wave') {
+        showInteraction(`${fromName} waves at you! 👋`, true);
+    } else if (data.action === 'hit') {
+        showInteraction(`${fromName} hit you! 👊`, true);
+        sound.playTone(200, 0.15, 'square', 0.08);
+    } else if (data.action === 'kiss') {
+        showInteraction(`${fromName} blew a kiss! 😘`, true);
+    } else if (data.action === 'message' && data.message) {
+        showInteraction(`${fromName}: ${data.message}`, true);
+    }
 };
 
 setupHotbar();
@@ -283,7 +453,7 @@ function gameLoop() {
     minimap.update(dt, player.position, agentManager.agents, ratManager.rats);
     minimap.setRemotePlayers(remotePositions);
 
-    if (locked) {
+    if (locked && interactionMenu.style.display === 'none') {
         const forward = new THREE.Vector3(0, 0, -1);
         forward.applyQuaternion(camera.quaternion);
         const checkPos = camera.position.clone().add(forward.multiplyScalar(3));
@@ -292,11 +462,10 @@ function gameLoop() {
         const nearAgent = agentManager.getAgentAt(checkPos, 4);
 
         if (showInteraction._forced) {
-            // don't overwrite forced popup
         } else if (nearRat) {
-            showInteraction(`Press E to pet ${nearRat.name}`);
+            showInteraction(`Press E to interact with ${nearRat.name}`);
         } else if (nearAgent) {
-            showInteraction(`Press E to talk to ${nearAgent.name}`);
+            showInteraction(`Press E to interact with ${nearAgent.name}`);
         } else if (interactionEl.style.display === 'block') {
             interactionEl.style.display = 'none';
         }

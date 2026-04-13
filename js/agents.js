@@ -126,6 +126,8 @@ export class AgentPlayer {
         this.bobTimer = 0;
 
         this.speechBubble = null;
+        this.animTimer = 0;
+        this.currentAnim = null;
     }
 
     showMessage(msg, duration = 3) {
@@ -235,19 +237,21 @@ export class AgentPlayer {
         this.yaw += wrapped * Math.min(1, dt * 6);
         this.group.rotation.y = this.yaw;
 
-        if (this.state === AGENT_STATES.WANDER) {
+        if (this.state === AGENT_STATES.WANDER && !this.currentAnim) {
             this.bobTimer += dt * 8;
             const bob = Math.sin(this.bobTimer) * 0.08;
             this.leftLeg.rotation.x = bob;
             this.rightLeg.rotation.x = -bob;
             this.leftArm.rotation.x = -bob * 0.6;
             this.rightArm.rotation.x = bob * 0.6;
-        } else {
+        } else if (!this.currentAnim) {
             this.leftLeg.rotation.x *= 0.9;
             this.rightLeg.rotation.x *= 0.9;
             this.leftArm.rotation.x *= 0.9;
             this.rightArm.rotation.x *= 0.9;
         }
+
+        this.updateAnims(dt);
 
         if (this.group.position.y < -20) {
             const h = this.world.getHeight(
@@ -360,6 +364,13 @@ export class AgentPlayer {
     doMine(dt) {
         if (this.targetBlock) {
             this.rightArm.rotation.x = -1.2 + Math.sin(performance.now() * 0.015) * 0.4;
+            this.mineTimer = (this.mineTimer || 0) + dt;
+            if (this.mineTimer >= 1.5) {
+                this.executeMine();
+                this.mineTimer = 0;
+            }
+        } else {
+            this.mineTimer = 0;
         }
     }
 
@@ -445,6 +456,45 @@ export class AgentPlayer {
         this.showMessage(responses[Math.floor(Math.random() * responses.length)], 4);
         this.state = AGENT_STATES.LOOK_AT_PLAYER;
         this.stateTimer = 3;
+    }
+
+    playAnim(type, duration = 1) {
+        this.currentAnim = type;
+        this.animTimer = duration;
+    }
+
+    updateAnims(dt) {
+        if (this.animTimer > 0) {
+            this.animTimer -= dt;
+            if (this.animTimer <= 0) this.currentAnim = null;
+        }
+        if (this.currentAnim === 'hit') {
+            this.group.position.x += Math.sin(performance.now() * 0.03) * 0.003;
+            this.head.rotation.z = Math.sin(performance.now() * 0.02) * 0.3;
+        } else if (this.currentAnim === 'kiss') {
+            this.head.rotation.z = Math.sin(performance.now() * 0.01) * 0.1;
+            this.rightArm.rotation.x = -1.5;
+        } else if (this.currentAnim === 'wave') {
+            this.rightArm.rotation.x = -1.2 + Math.sin(performance.now() * 0.01) * 0.5;
+        }
+    }
+
+    hit() {
+        this.playAnim('hit', 0.8);
+        const responses = ['*ow!*', 'Hey!', '*squeak!* That hurt!', 'Ouch!', '*rubs head*'];
+        this.showMessage(responses[Math.floor(Math.random() * responses.length)], 3);
+    }
+
+    kiss() {
+        this.playAnim('kiss', 2);
+        const responses = ['*blushes*', 'Oh my!', 'S-squeak?!', '*tail wiggles*'];
+        this.showMessage(responses[Math.floor(Math.random() * responses.length)], 4);
+    }
+
+    wave() {
+        this.playAnim('wave', 1.5);
+        const responses = ['*waves back*', 'Hey there!', '*squeak hello*'];
+        this.showMessage(responses[Math.floor(Math.random() * responses.length)], 3);
     }
 
     getPosition() {

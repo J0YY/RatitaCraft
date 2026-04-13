@@ -11,6 +11,7 @@ export class NetworkManager {
         this.onPlayerJoin = null;
         this.onPlayerLeave = null;
         this.onSeedReceived = null;
+        this.onInteraction = null;
         this.syncTimer = 0;
         this.syncInterval = 1 / 20;
         this._sentHello = new Set();
@@ -118,6 +119,9 @@ export class NetworkManager {
                 this.world.setBlock(data.x, data.y, data.z, data.blockType);
                 this.broadcastBlock(data.x, data.y, data.z, data.blockType, peerId);
                 break;
+            case 'interaction':
+                if (this.onInteraction) this.onInteraction(data);
+                break;
             case 'initial-sync':
                 if (!this.isHost) {
                     for (const b of data.blocks) {
@@ -162,6 +166,13 @@ export class NetworkManager {
 
     sendBlockChange(x, y, z, blockType) {
         const msg = { type: 'block', x, y, z, blockType };
+        for (const conn of this.connections.values()) {
+            try { conn.send(msg); } catch (e) {}
+        }
+    }
+
+    sendInteraction(action, targetType, targetName, message, fromName) {
+        const msg = { type: 'interaction', action, targetType, targetName, message, from: fromName || 'Player' };
         for (const conn of this.connections.values()) {
             try { conn.send(msg); } catch (e) {}
         }

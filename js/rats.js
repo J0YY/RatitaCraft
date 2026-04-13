@@ -111,7 +111,7 @@ export class Rat {
 
         this.velocity = new THREE.Vector3();
         this.targetAngle = Math.random() * Math.PI * 2;
-        this.group.rotation.y = this.targetAngle;
+        this.group.rotation.y = this.targetAngle + Math.PI;
         this.state = 'idle';
         this.stateTimer = Math.random() * 3;
         this.walkSpeed = 1.2;
@@ -184,7 +184,8 @@ export class Rat {
                 }
             }
 
-            const angleDiff = this.targetAngle - this.group.rotation.y;
+            const targetRot = this.targetAngle + Math.PI;
+            const angleDiff = targetRot - this.group.rotation.y;
             let wrapped = ((angleDiff + Math.PI) % (Math.PI * 2)) - Math.PI;
             if (wrapped < -Math.PI) wrapped += Math.PI * 2;
             this.group.rotation.y += wrapped * Math.min(1, dt * 8);

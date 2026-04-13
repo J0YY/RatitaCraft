@@ -34,8 +34,8 @@
             <h3>Controls</h3>
             <ul>
                 <li><span class="key">W A S D</span> Move</li>
-                <li><span class="key">Space</span> Jump</li>
-                <li><span class="key">Shift</span> Sprint</li>
+                <li><span class="key">Space</span> Jump / Swim up</li>
+                <li><span class="key">Shift</span> Sprint / Dive</li>
                 <li><span class="key">Mouse</span> Look around</li>
                 <li><span class="key">Left Click</span> Break block</li>
                 <li><span class="key">Right Click</span> Place block</li>
@@ -43,22 +43,28 @@
                 <li><span class="key">Scroll</span> Cycle blocks</li>
                 <li><span class="key">F</span> Toggle fly mode</li>
                 <li><span class="key">T</span> Add AI agent</li>
-                <li><span class="key">E</span> Interact</li>
+                <li><span class="key">E</span> Interact menu</li>
                 <li><span class="key">ESC</span> Pause</li>
             </ul>
         </div>
-        <div class="features">
-            <h3>Features</h3>
-            <ul>
-                <li>Day/night cycle with stars</li>
-                <li>Procedural clouds</li>
-                <li>Caves & ore generation</li>
-                <li>Flowers & tall grass</li>
-                <li>Cute rats & AI agents</li>
-                <li>Multiplayer via PeerJS</li>
-                <li>Block breaking particles</li>
-                <li>Sound effects</li>
-            </ul>
+        <div class="customize-section">
+            <h3>Character</h3>
+            <div class="custom-row">
+                <label>Name</label>
+                <input id="player-name" type="text" value="Player" maxlength="16">
+            </div>
+            <div class="custom-row">
+                <label>Hair</label>
+                <input id="hair-color" type="color" value="#4A3728">
+            </div>
+            <div class="custom-row">
+                <label>Shirt</label>
+                <input id="shirt-color" type="color" value="#4488CC">
+            </div>
+            <div class="custom-row">
+                <label>Pants</label>
+                <input id="pants-color" type="color" value="#334488">
+            </div>
         </div>
         <div class="multiplayer-section">
             <h3>Multiplayer</h3>
@@ -75,6 +81,15 @@
                 <button id="btn-copy" class="mp-btn small">Copy</button>
             </div>
         </div>
+        <div class="save-section">
+            <h3>World</h3>
+            <div class="mp-buttons">
+                <button id="btn-save" class="mp-btn">Save World</button>
+                <select id="load-select"><option value="">Load world...</option></select>
+                <button id="btn-load" class="mp-btn">Load</button>
+                <button id="btn-delete" class="mp-btn">Delete</button>
+            </div>
+        </div>
     </div>
     <div id="crosshair">
         <svg width="24" height="24" viewBox="0 0 24 24">
@@ -87,7 +102,17 @@
     </div>
     <div id="hotbar"></div>
     <div id="interaction-popup"></div>
+    <div id="interaction-menu" style="display:none">
+        <div class="im-title">Interact</div>
+        <button class="im-btn" data-action="wave">👋 Wave</button>
+        <button class="im-btn" data-action="hit">👊 Hit</button>
+        <button class="im-btn" data-action="kiss">😘 Kiss</button>
+        <div class="im-chat">
+            <input id="chat-input" type="text" placeholder="Say something..." maxlength="120">
+            <button id="chat-send" class="mp-btn">Send</button>
+        </div>
+    </div>
     <div id="debug"></div>
-    <script type="module" src="js/main.js?v=5"></script>
+    <script type="module" src="js/main.js?v=6"></script>
 </body>
 </html>
