@@ -1,7 +1,7 @@
 const API_URL = 'https://open.bigmodel.cn/api/paas/v4/chat/completions';
 const API_KEY = '47ed6a7d76de494281c8af552468d7de.tSsy4IaQLannMiro';
 
-const SYSTEM_PROMPT = `You are a friendly NPC in a voxel game called RatitaCraft. You are a cute rat-person character who lives in a blocky world. Keep responses very short (1-2 sentences max). Be playful, cheerful, and a bit mischievous like a rat. You love cheese, squeaking, and exploring. Sometimes make rat noises like *squeak* or *nibbles*. Never break character.`;
+const SYSTEM_PROMPT = `You are a friendly villager NPC in a voxel game called RatitaCraft. You are a human character who lives in a blocky world with cute rats. Keep responses very short (1-2 sentences max). Be friendly, helpful, and a bit quirky. You like building, exploring, and chatting about the world around you. You know there are adorable rats wandering around and you think they're cute. Never break character.`;
 
 export async function askGLM(agentName, playerName, message) {
     try {
@@ -41,9 +41,9 @@ export async function askGLM(agentName, playerName, message) {
 
 function getFallbackResponse(name) {
     const fallbacks = [
-        `${name}: *squeak* Hmm, I zoned out for a sec!`,
-        `${name}: Sorry, rat brain freeze! What were we talking about?`,
-        `${name}: *twitches whiskers* I'm having trouble thinking right now!`,
+        `${name}: Hmm, I lost my train of thought!`,
+        `${name}: Sorry, brain freeze! What were we talking about?`,
+        `${name}: I'm having trouble thinking right now, ask me again?`,
     ];
     return fallbacks[Math.floor(Math.random() * fallbacks.length)];
 }

@@ -1,7 +1,8 @@
 export class NetworkManager {
-    constructor(world, player) {
+    constructor(world, player, playerNameFn) {
         this.world = world;
         this.player = player;
+        this.playerNameFn = playerNameFn || (() => 'Player');
         this.peer = null;
         this.connections = new Map();
         this.isHost = false;
@@ -78,9 +79,9 @@ export class NetworkManager {
             this.connections.set(conn.peer, conn);
             this.setStatus('Connected to ' + conn.peer);
             if (this.isHost) {
-                conn.send({ type: 'hello', name: 'Host', seed: this.world.seed });
+                conn.send({ type: 'hello', name: this.playerNameFn(), seed: this.world.seed });
             } else {
-                conn.send({ type: 'hello', name: 'Player' });
+                conn.send({ type: 'hello', name: this.playerNameFn() });
             }
             this._sentHello.add(conn.peer);
         });

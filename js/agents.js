@@ -2,9 +2,9 @@ import * as THREE from 'three';
 import { HOTBAR_BLOCKS, BLOCK } from './textures.js';
 
 const AGENT_NAMES = [
-    'Ratty', 'Scabbers', 'Templeton', 'Remy', 'Ratatouille',
-    'Splat', 'Dodge', 'Fidget', 'Jitter', 'Patches',
-    'Scurry', 'Cheddar', 'Gouda', 'Brie', 'Swiss'
+    'Alex', 'Sam', 'Jordan', 'Taylor', 'Morgan',
+    'Casey', 'Riley', 'Quinn', 'Avery', 'Harper',
+    'Sage', 'Rowan', 'Finley', 'Emery', 'Dakota'
 ];
 
 const AGENT_SKINS = [
@@ -149,25 +149,46 @@ export class AgentPlayer {
         c.width = 256; c.height = 64;
         const ctx = c.getContext('2d');
 
+        const words = this.message.split(' ');
+        const lines = [];
+        let line = '';
+        ctx.font = 'bold 16px monospace';
+        for (const word of words) {
+            const test = line ? line + ' ' + word : word;
+            if (ctx.measureText(test).width > 240) {
+                if (line) lines.push(line);
+                line = word;
+            } else {
+                line = test;
+            }
+        }
+        if (line) lines.push(line);
+
+        const lineH = 18;
+        const totalH = Math.max(32, lines.length * lineH + 16);
+        c.height = totalH;
+
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
         ctx.beginPath();
         if (ctx.roundRect) {
-            ctx.roundRect(4, 4, 248, 56, 8);
+            ctx.roundRect(4, 4, 248, totalH - 8, 8);
         } else {
-            ctx.rect(4, 4, 248, 56);
+            ctx.rect(4, 4, 248, totalH - 8);
         }
         ctx.fill();
 
         ctx.fillStyle = '#ffffff';
-        ctx.font = 'bold 18px monospace';
+        ctx.font = 'bold 16px monospace';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
-        ctx.fillText(this.message, 128, 32);
+        for (let i = 0; i < lines.length; i++) {
+            ctx.fillText(lines[i], 128, 14 + i * lineH + lineH / 2);
+        }
 
         const tex = new THREE.CanvasTexture(c);
         const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, depthTest: false });
         this.speechBubble = new THREE.Sprite(mat);
-        this.speechBubble.scale.set(2.0, 0.5, 1);
+        this.speechBubble.scale.set(2.0, totalH / 64 * 0.5, 1);
         this.speechBubble.position.y = 2.7;
         this.group.add(this.speechBubble);
     }
@@ -269,7 +290,7 @@ export class AgentPlayer {
         if (distToPlayer < 5 && Math.random() < 0.5) {
             this.state = AGENT_STATES.LOOK_AT_PLAYER;
             this.stateTimer = 2 + Math.random() * 3;
-            const greetings = ['Hi!', ':)', '*waves*', 'Hello!', '*nods*'];
+            const greetings = ['Hi!', 'Hey there!', 'Hello!', 'Nice day!'];
             this.showMessage(greetings[Math.floor(Math.random() * greetings.length)]);
             return;
         }
@@ -278,7 +299,7 @@ export class AgentPlayer {
         if (r < 0.15) {
             this.state = AGENT_STATES.IDLE;
             this.stateTimer = 2 + Math.random() * 3;
-            const idles = ['*yawns*', '*stretches*', '...', '*looks around*'];
+            const idles = ['*yawns*', 'Hmm...', 'La la la~', '*looks around*'];
             this.showMessage(idles[Math.floor(Math.random() * idles.length)]);
         } else if (r < 0.75) {
             this.state = AGENT_STATES.WANDER;
@@ -444,14 +465,14 @@ export class AgentPlayer {
 
     interact() {
         const responses = [
-            `${this.name}: Squeak!`,
+            `${this.name}: Hey!`,
             `${this.name}: What's up?`,
             `${this.name}: Nice day!`,
-            `${this.name}: *scurries*`,
-            `${this.name}: Found any cheese?`,
-            `${this.name}: Hehe :3`,
-            `${this.name}: *nibbles*`,
-            `${this.name}: Rat power!`,
+            `${this.name}: Building anything cool?`,
+            `${this.name}: Have you seen the rats? They're adorable!`,
+            `${this.name}: I love this world!`,
+            `${this.name}: Want to build together?`,
+            `${this.name}: Found anything interesting?`,
         ];
         this.showMessage(responses[Math.floor(Math.random() * responses.length)], 4);
         this.state = AGENT_STATES.LOOK_AT_PLAYER;
@@ -481,19 +502,19 @@ export class AgentPlayer {
 
     hit() {
         this.playAnim('hit', 0.8);
-        const responses = ['*ow!*', 'Hey!', '*squeak!* That hurt!', 'Ouch!', '*rubs head*'];
+        const responses = ['*ow!*', 'Hey! What was that for?', 'Ouch!', '*rubs head*', 'That hurt!'];
         this.showMessage(responses[Math.floor(Math.random() * responses.length)], 3);
     }
 
     kiss() {
         this.playAnim('kiss', 2);
-        const responses = ['*blushes*', 'Oh my!', 'S-squeak?!', '*tail wiggles*'];
+        const responses = ['*blushes*', 'Oh! Um...', 'W-what?!', '*stammers*'];
         this.showMessage(responses[Math.floor(Math.random() * responses.length)], 4);
     }
 
     wave() {
         this.playAnim('wave', 1.5);
-        const responses = ['*waves back*', 'Hey there!', '*squeak hello*'];
+        const responses = ['*waves back*', 'Hey there!', 'Hi!'];
         this.showMessage(responses[Math.floor(Math.random() * responses.length)], 3);
     }
 

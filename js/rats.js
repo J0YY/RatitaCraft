@@ -122,9 +122,13 @@ export class Rat {
         this.petCooldown = 0;
         this.isPet = false;
         this.petTimer = 0;
+        this.isKept = false;
+        this.isFed = false;
+        this.fedTimer = 0;
+        this.followTarget = null;
     }
 
-    update(dt) {
+    update(dt, playerPos) {
         if (!this.alive) return;
         dt = Math.min(dt, 0.05);
 
@@ -132,10 +136,59 @@ export class Rat {
         this.squeakTimer -= dt;
         this.petCooldown -= dt;
         this.petTimer -= dt;
+        this.fedTimer -= dt;
 
         if (this.petTimer <= 0) this.isPet = false;
+        if (this.fedTimer <= 0) this.isFed = false;
 
-        if (this.stateTimer <= 0) {
+        if (this.isKept && playerPos) {
+            this.followTarget = playerPos;
+        }
+
+        if (this.followTarget && this.isKept) {
+            const dx = this.followTarget.x - this.group.position.x;
+            const dz = this.followTarget.z - this.group.position.z;
+            const dist = Math.sqrt(dx * dx + dz * dz);
+
+            if (dist > 4) {
+                this.targetAngle = Math.atan2(dx, dz);
+                const speed = this.walkSpeed * 1.3 * dt;
+                const nx = this.group.position.x + Math.sin(this.targetAngle) * speed;
+                const nz = this.group.position.z + Math.cos(this.targetAngle) * speed;
+                this.group.position.x = nx;
+                this.group.position.z = nz;
+                this.collideHorizontal();
+
+                const targetRot = this.targetAngle + Math.PI;
+                const angleDiff = targetRot - this.group.rotation.y;
+                let wrapped = ((angleDiff + Math.PI) % (Math.PI * 2)) - Math.PI;
+                if (wrapped < -Math.PI) wrapped += Math.PI * 2;
+                this.group.rotation.y += wrapped * Math.min(1, dt * 8);
+
+                this.wiggleLegs(dt * 10);
+                this.wiggleTail(dt);
+                this.state = 'walk';
+            } else if (dist > 2) {
+                if (this.stateTimer <= 0) {
+                    const r = Math.random();
+                    if (r < 0.5) {
+                        this.state = 'idle';
+                        this.stateTimer = 1 + Math.random() * 2;
+                    } else {
+                        this.state = 'sniff';
+                        this.stateTimer = 0.5 + Math.random();
+                    }
+                }
+            } else {
+                if (this.stateTimer <= 0) {
+                    this.state = 'idle';
+                    this.stateTimer = 1 + Math.random() * 2;
+                }
+            }
+        } else if (this.isPet) {
+            this.state = 'idle';
+            this.stateTimer = 0.5;
+        } else if (this.stateTimer <= 0) {
             const r = Math.random();
             if (r < 0.3) {
                 this.state = 'idle';
@@ -148,11 +201,6 @@ export class Rat {
                 this.state = 'sniff';
                 this.stateTimer = 0.5 + Math.random();
             }
-        }
-
-        if (this.isPet) {
-            this.state = 'idle';
-            this.stateTimer = 0.5;
         }
 
         if (this.state === 'walk') {
@@ -267,6 +315,21 @@ export class Rat {
         return true;
     }
 
+    feed() {
+        this.isFed = true;
+        this.fedTimer = 30;
+        this.petCooldown = 0;
+        this.isPet = true;
+        this.petTimer = 5;
+        return true;
+    }
+
+    keep() {
+        this.isKept = true;
+        this.wanderRadius = 0;
+        return true;
+    }
+
     getPosition() {
         return this.group.position;
     }
@@ -304,12 +367,12 @@ export class RatManager {
         for (let i = this.rats.length - 1; i >= 0; i--) {
             const rat = this.rats[i];
             const dist = rat.getPosition().distanceTo(playerPos);
-            if (dist > 60) {
+            if (dist > 60 && !rat.isKept) {
                 rat.dispose();
                 this.rats.splice(i, 1);
                 continue;
             }
-            rat.update(dt);
+            rat.update(dt, playerPos);
         }
     }
 

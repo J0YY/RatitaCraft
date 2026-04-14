@@ -54,7 +54,7 @@ const sound = new SoundManager();
 const ratManager = new RatManager(scene, world);
 const agentManager = new AgentManager(scene, world);
 const remotePlayerManager = new RemotePlayerManager(scene);
-const network = new NetworkManager(world, player);
+const network = new NetworkManager(world, player, getPlayerName);
 const minimap = new Minimap(world);
 
 const startH = world.getHeight(8, 8);
@@ -87,9 +87,61 @@ const hotbarEl = document.getElementById('hotbar');
 const debugEl = document.getElementById('debug');
 const interactionEl = document.getElementById('interaction-popup');
 const interactionMenu = document.getElementById('interaction-menu');
+const chatLogEl = document.getElementById('chat-log');
+const playerListEl = document.getElementById('player-list');
 
 let interactionTarget = null;
 let interactionType = null;
+
+const chatMessages = [];
+
+function addChatMessage(msg, duration = 8) {
+    chatMessages.push({ msg, timer: duration });
+    if (chatMessages.length > 8) chatMessages.shift();
+    renderChatLog();
+}
+
+function renderChatLog() {
+    chatLogEl.innerHTML = '';
+    for (const m of chatMessages) {
+        const div = document.createElement('div');
+        div.className = 'chat-msg';
+        div.textContent = m.msg;
+        chatLogEl.appendChild(div);
+    }
+}
+
+function updateChatLog(dt) {
+    let changed = false;
+    for (let i = chatMessages.length - 1; i >= 0; i--) {
+        chatMessages[i].timer -= dt;
+        if (chatMessages[i].timer <= 0) {
+            chatMessages.splice(i, 1);
+            changed = true;
+        }
+    }
+    if (changed) renderChatLog();
+}
+
+function updatePlayerList() {
+    playerListEl.innerHTML = '';
+    const title = document.createElement('div');
+    title.className = 'pl-title';
+    title.textContent = `Players (${1 + network.connections.size})`;
+    playerListEl.appendChild(title);
+
+    const self = document.createElement('div');
+    self.className = 'pl-name self';
+    self.textContent = getPlayerName();
+    playerListEl.appendChild(self);
+
+    for (const [peerId, rp] of network.remotePlayers) {
+        const el = document.createElement('div');
+        el.className = 'pl-name';
+        el.textContent = rp.name || 'Player';
+        playerListEl.appendChild(el);
+    }
+}
 
 function getPlayerName() {
     return document.getElementById('player-name').value || 'Player';
@@ -151,6 +203,9 @@ document.addEventListener('pointerlockchange', () => {
     hotbarEl.style.display = locked ? 'flex' : 'none';
     debugEl.style.display = locked ? 'block' : 'none';
     minimap.canvas.style.display = locked ? 'block' : 'none';
+    chatLogEl.style.display = locked ? 'block' : 'none';
+    playerListEl.style.display = locked ? 'block' : 'none';
+    if (locked) updatePlayerList();
     if (!locked) {
         interactionMenu.style.display = 'none';
         interactionTarget = null;
@@ -179,13 +234,37 @@ function openInteractionMenu() {
     interactionType = found.type;
     interactionMenuOpen = true;
 
+    const isRat = found.type === 'rat';
     const title = interactionMenu.querySelector('.im-title');
-    title.textContent = found.type === 'rat' ? `🐀 ${found.target.name}` : `🧑 ${found.target.name}`;
+    title.textContent = isRat ? `🐀 ${found.target.name}` : `🧑 ${found.target.name}`;
+
+    interactionMenu.querySelectorAll('.agent-btn').forEach(b => b.style.display = isRat ? 'none' : 'block');
+    interactionMenu.querySelectorAll('.rat-btn').forEach(b => {
+        if (isRat) {
+            b.style.display = 'block';
+            if (b.dataset.action === 'keep' && found.target.isKept) {
+                b.textContent = '💕 Following you';
+                b.disabled = true;
+                b.style.opacity = '0.5';
+            } else {
+                b.disabled = false;
+                b.style.opacity = '1';
+                if (b.dataset.action === 'pet') b.textContent = '🤚 Pet';
+                if (b.dataset.action === 'feed') b.textContent = '🧀 Feed';
+                if (b.dataset.action === 'keep') b.textContent = '💕 Keep';
+            }
+        } else {
+            b.style.display = 'none';
+        }
+    });
+    const chatSection = interactionMenu.querySelector('.agent-chat');
+    if (chatSection) chatSection.style.display = isRat ? 'none' : 'flex';
+
     interactionMenu.style.display = 'block';
     document.exitPointerLock();
     setTimeout(() => {
         const chatInput = document.getElementById('chat-input');
-        if (chatInput) chatInput.focus();
+        if (chatInput && !isRat) chatInput.focus();
     }, 100);
 }
 
@@ -207,21 +286,36 @@ interactionMenu.querySelectorAll('.im-btn').forEach(btn => {
             if (action === 'hit') {
                 interactionTarget.hit();
                 sound.playTone(200, 0.15, 'square', 0.08);
+                addChatMessage(`You hit ${interactionTarget.name}`);
             } else if (action === 'kiss') {
                 interactionTarget.kiss();
                 sound.playTone(600, 0.2, 'sine', 0.06);
+                addChatMessage(`You blew a kiss at ${interactionTarget.name}`);
             } else if (action === 'wave') {
                 interactionTarget.wave();
                 sound.playTone(440, 0.1, 'sine', 0.05);
+                addChatMessage(`You wave at ${interactionTarget.name}`);
             }
             network.sendInteraction(action, 'agent', interactionTarget.name, undefined, getPlayerName());
         } else if (interactionType === 'rat') {
-            if (action === 'wave') {
-                showInteraction(`${interactionTarget.name} squeaks at you!`, true);
+            if (action === 'pet') {
+                if (interactionTarget.pet()) {
+                    showInteraction(`${interactionTarget.name} nuzzles your hand! 💕`, true);
+                    sound.squeak();
+                    addChatMessage(`You pet ${interactionTarget.name}`);
+                } else {
+                    showInteraction(`${interactionTarget.name} isn't ready yet...`, true);
+                }
+            } else if (action === 'feed') {
+                interactionTarget.feed();
+                showInteraction(`${interactionTarget.name} munches happily! 🧀`, true);
                 sound.squeak();
-            } else if (action === 'hit') {
-                showInteraction(`${interactionTarget.name} runs away!`, true);
-                sound.playTone(200, 0.1, 'square', 0.06);
+                addChatMessage(`You feed ${interactionTarget.name}`);
+            } else if (action === 'keep') {
+                interactionTarget.keep();
+                showInteraction(`${interactionTarget.name} will follow you! 💕`, true);
+                sound.squeak();
+                addChatMessage(`${interactionTarget.name} is now following you!`);
             }
         }
         closeInteractionMenu();
@@ -248,12 +342,14 @@ async function sendChatMessage() {
     const iType = interactionType;
 
     if (iType === 'agent') {
+        addChatMessage(`You → ${target.name}: ${msg}`);
         target.showMessage(`You: ${msg}`, 5);
         network.sendInteraction('message', 'agent', target.name, msg, getPlayerName());
 
         const response = await askGLM(target.name, getPlayerName(), msg);
         if (target.alive) {
             target.showMessage(response, 6);
+            addChatMessage(`${target.name}: ${response}`);
         }
     }
     closeInteractionMenu();
@@ -437,6 +533,7 @@ function gameLoop() {
 
     if (locked) {
         player.update(dt);
+        updateChatLog(dt);
     }
 
     dayNight.update(dt, player.position);
@@ -463,9 +560,9 @@ function gameLoop() {
 
         if (showInteraction._forced) {
         } else if (nearRat) {
-            showInteraction(`Press E to interact with ${nearRat.name}`);
+            showInteraction(`Press E → ${nearRat.name} ${nearRat.isKept ? '(following you)' : ''} 🐀`);
         } else if (nearAgent) {
-            showInteraction(`Press E to interact with ${nearAgent.name}`);
+            showInteraction(`Press E → ${nearAgent.name} 🧑`);
         } else if (interactionEl.style.display === 'block') {
             interactionEl.style.display = 'none';
         }

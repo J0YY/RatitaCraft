@@ -101,9 +101,9 @@
                 </div>
 
                 <div class="panel cute-panel">
-                    <p>🐀 rats spawn in the wild — be nice to them!</p>
-                    <p>🧀 agents love cheese-themed conversations</p>
-                    <p>😘 press E near someone to interact</p>
+                    <p>🐀 pet and feed rats to befriend them!</p>
+                    <p>💕 use Keep to make a rat follow you</p>
+                    <p>🧑 agents are villagers — chat with them!</p>
                 </div>
             </div>
         </div>
@@ -121,13 +121,18 @@
         </svg>
     </div>
     <div id="hotbar"></div>
+    <div id="chat-log"></div>
+    <div id="player-list"></div>
     <div id="interaction-popup"></div>
     <div id="interaction-menu" style="display:none">
         <div class="im-title">Interact</div>
-        <button class="im-btn" data-action="wave">👋 Wave</button>
-        <button class="im-btn" data-action="hit">👊 Hit</button>
-        <button class="im-btn" data-action="kiss">😘 Kiss</button>
-        <div class="im-chat">
+        <button class="im-btn agent-btn" data-action="wave">👋 Wave</button>
+        <button class="im-btn agent-btn" data-action="hit">👊 Hit</button>
+        <button class="im-btn agent-btn" data-action="kiss">😘 Kiss</button>
+        <button class="im-btn rat-btn" data-action="pet">🤚 Pet</button>
+        <button class="im-btn rat-btn" data-action="feed">🧀 Feed</button>
+        <button class="im-btn rat-btn" data-action="keep">💕 Keep</button>
+        <div class="im-chat agent-chat">
             <input id="chat-input" type="text" placeholder="Say something..." maxlength="120">
             <button id="chat-send" class="mp-btn">Send</button>
         </div>
