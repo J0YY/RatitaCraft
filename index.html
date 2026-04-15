@@ -12,7 +12,7 @@
         }
     }
     </script>
-    <script async src="https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js" onerror="window.__peerFailed=true"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script>
         window.onerror = function(msg, url, line, col, err) {
             var d = document.getElementById('debug');
@@ -78,17 +78,8 @@
             <div class="menu-col">
                 <div class="panel">
                     <h3>🌐 Multiplayer</h3>
-                    <div class="mp-buttons">
-                        <button id="btn-host" class="mp-btn accent">Host Game</button>
-                        <button id="btn-join" class="mp-btn">Join</button>
-                        <input id="join-code" type="text" placeholder="Room code" maxlength="12">
-                    </div>
-                    <div id="mp-status"></div>
-                    <div id="room-code-display" style="display:none">
-                        <span>Room: </span><code id="room-code"></code>
-                        <button id="btn-copy" class="mp-btn small">Copy</button>
-                    </div>
-                    <p class="hint">share the room code with socratito so he can join! 💕</p>
+                    <div id="mp-status">Connecting...</div>
+                    <p class="hint">auto-joins the shared world 💕</p>
                 </div>
 
                 <div class="panel">
@@ -159,6 +150,6 @@
         </div>
     </div>
     <div id="debug"></div>
-    <script type="module" src="js/main.js?v=8"></script>
+    <script type="module" src="js/main.js?v=9"></script>
 </body>
 </html>

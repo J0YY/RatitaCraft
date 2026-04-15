@@ -16,6 +16,7 @@ import { saveWorld, loadWorldData, deleteWorld, populateLoadSelect } from './sav
 import { Chunk } from './chunk.js';
 import { AnimalManager } from './animals.js';
 import SimplexNoise from './noise.js';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase-config.js';
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87CEEB);
@@ -55,7 +56,7 @@ const sound = new SoundManager();
 const ratManager = new RatManager(scene, world);
 const agentManager = new AgentManager(scene, world);
 const remotePlayerManager = new RemotePlayerManager(scene);
-const network = new NetworkManager(world, player, getPlayerName);
+const network = new NetworkManager(world, player, getPlayerName, SUPABASE_URL, SUPABASE_ANON_KEY);
 const minimap = new Minimap(world);
 const animalManager = new AnimalManager(scene, world);
 
@@ -512,26 +513,6 @@ function showInteraction(msg, forced = false) {
     }, forced ? 2000 : 500);
 }
 
-document.getElementById('btn-host').addEventListener('click', (e) => {
-    e.stopPropagation();
-    network.host();
-});
-
-document.getElementById('btn-join').addEventListener('click', (e) => {
-    e.stopPropagation();
-    const code = document.getElementById('join-code').value.trim();
-    if (code) network.join(code);
-});
-
-document.getElementById('btn-copy').addEventListener('click', (e) => {
-    e.stopPropagation();
-    const code = document.getElementById('room-code').textContent;
-    navigator.clipboard.writeText(code).then(() => {
-        document.getElementById('btn-copy').textContent = 'Copied!';
-        setTimeout(() => { document.getElementById('btn-copy').textContent = 'Copy'; }, 1500);
-    });
-});
-
 document.getElementById('btn-save').addEventListener('click', (e) => {
     e.stopPropagation();
     const name = saveWorld(world, player.position, world.seed);
@@ -630,6 +611,7 @@ network.onInteraction = (data) => {
 
 setupHotbar();
 updateHealthBar();
+network.connect(world.seed);
 
 let lastTime = performance.now();
 let frames = 0, fps = 0, fpsTimer = 0;
