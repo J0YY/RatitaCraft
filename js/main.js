@@ -4,7 +4,7 @@ import { Player } from './player.js';
 import { DayNightCycle } from './daynight.js';
 import { Particles } from './particles.js';
 import { SoundManager } from './sound.js';
-import { BLOCK, HOTBAR_BLOCKS, BLOCK_NAMES, createAtlas } from './textures.js';
+import { BLOCK, HOTBAR_BLOCKS, BLOCK_NAMES, FOOD_BLOCKS, createAtlas } from './textures.js';
 import { CHUNK_SIZE } from './chunk.js';
 import { RatManager } from './rats.js';
 import { AgentManager } from './agents.js';
@@ -14,6 +14,7 @@ import { Minimap } from './minimap.js';
 import { askGLM } from './chat.js';
 import { saveWorld, loadWorldData, deleteWorld, populateLoadSelect } from './saveload.js';
 import { Chunk } from './chunk.js';
+import { AnimalManager } from './animals.js';
 import SimplexNoise from './noise.js';
 
 const scene = new THREE.Scene();
@@ -49,17 +50,20 @@ world.init({ solid: solidMaterial, water: waterMaterial });
 
 const player = new Player(camera, world);
 const dayNight = new DayNightCycle(scene, ambientLight, dirLight);
-const particles = new Particles(scene);
+const particles = new Particles(scene, camera);
 const sound = new SoundManager();
 const ratManager = new RatManager(scene, world);
 const agentManager = new AgentManager(scene, world);
 const remotePlayerManager = new RemotePlayerManager(scene);
 const network = new NetworkManager(world, player, getPlayerName);
 const minimap = new Minimap(world);
+const animalManager = new AnimalManager(scene, world);
 
+const spawnPos = new THREE.Vector3(8, 50, 8);
 const startH = world.getHeight(8, 8);
 const waterSurface = 21;
-player.position.set(8, Math.max(startH, waterSurface) + 2, 8);
+spawnPos.set(8, Math.max(startH, waterSurface) + 2, 8);
+player.position.copy(spawnPos);
 
 player.onBreak = (x, y, z, blockType) => {
     particles.emit(x, y, z, blockType);
@@ -74,6 +78,14 @@ player.onFootstep = () => { sound.footstep(); };
 player.onJump = () => { sound.jump(); };
 player.onLand = () => { sound.land(); };
 player.onSlotChange = () => { updateHotbar(); };
+player.onEat = (type, heal) => {
+    if (heal > 0) {
+        addChatMessage(`Ate ${type.replace('_', ' ')} (+${heal} hunger)`);
+        sound.playTone(500, 0.15, 'sine', 0.06);
+    }
+};
+player.onHealthChange = () => { updateHealthBar(); };
+player.onHungerChange = () => { updateHealthBar(); };
 
 const highlightGeo = new THREE.BoxGeometry(1.005, 1.005, 1.005);
 const highlightEdges = new THREE.EdgesGeometry(highlightGeo);
@@ -129,12 +141,10 @@ function updatePlayerList() {
     title.className = 'pl-title';
     title.textContent = `Players (${1 + network.connections.size})`;
     playerListEl.appendChild(title);
-
     const self = document.createElement('div');
     self.className = 'pl-name self';
     self.textContent = getPlayerName();
     playerListEl.appendChild(self);
-
     for (const [peerId, rp] of network.remotePlayers) {
         const el = document.createElement('div');
         el.className = 'pl-name';
@@ -147,6 +157,24 @@ function getPlayerName() {
     return document.getElementById('player-name').value || 'Player';
 }
 
+function updateHealthBar() {
+    const hb = document.getElementById('health-bar');
+    const hungerb = document.getElementById('hunger-bar');
+    const ht = document.getElementById('health-text');
+    if (hb) hb.style.width = Math.max(0, player.health / player.maxHealth * 100) + '%';
+    if (hungerb) hungerb.style.width = Math.max(0, player.hunger / player.maxHunger * 100) + '%';
+    if (ht) ht.textContent = `❤ ${player.health} | 🍖 ${player.hunger}`;
+    const inv = document.getElementById('inv-text');
+    if (inv) {
+        const foods = player.getFoodTypes();
+        inv.textContent = foods.length > 0 ? foods.map(f => `${f.replace('_',' ')} x${player.inventory[f]}`).join(', ') : 'No food (Q to eat)';
+    }
+    if (player.isDead) {
+        const deathEl = document.getElementById('death-screen');
+        if (deathEl) deathEl.style.display = 'flex';
+    }
+}
+
 function setupHotbar() {
     hotbarEl.innerHTML = '';
     HOTBAR_BLOCKS.forEach((blockId, i) => {
@@ -156,7 +184,6 @@ function setupHotbar() {
         num.className = 'number';
         num.textContent = i + 1;
         slot.appendChild(num);
-
         const texMap = { 1:0, 2:2, 3:3, 4:4, 5:5, 9:10, 8:9, 20:21, 12:13 };
         const defaultTex = texMap[blockId] !== undefined ? texMap[blockId] : 0;
         const atlasCols = 8;
@@ -169,12 +196,10 @@ function setupHotbar() {
         const cx = c.getContext('2d');
         cx.drawImage(atlasCanvas, col * 16, row * 16, 16, 16, 0, 0, 16, 16);
         slot.appendChild(c);
-
         const label = document.createElement('div');
         label.style.cssText = 'position:absolute;bottom:1px;right:2px;font-size:8px;color:#ccc;text-shadow:1px 1px #000;';
         label.textContent = BLOCK_NAMES[blockId] || '';
         slot.appendChild(label);
-
         hotbarEl.appendChild(slot);
     });
 }
@@ -205,6 +230,8 @@ document.addEventListener('pointerlockchange', () => {
     minimap.canvas.style.display = locked ? 'block' : 'none';
     chatLogEl.style.display = locked ? 'block' : 'none';
     playerListEl.style.display = locked ? 'block' : 'none';
+    const hb = document.getElementById('hud-bars');
+    if (hb) hb.style.display = locked ? 'flex' : 'none';
     if (locked) updatePlayerList();
     if (!locked) {
         interactionMenu.style.display = 'none';
@@ -215,13 +242,19 @@ document.addEventListener('pointerlockchange', () => {
 function findInteractionTarget() {
     const forward = new THREE.Vector3(0, 0, -1);
     forward.applyQuaternion(camera.quaternion);
-    const checkPos = camera.position.clone().add(forward.multiplyScalar(2.5));
+    const checkPos = camera.position.clone().add(forward.multiplyScalar(3));
 
     const nearRat = ratManager.getRatAt(checkPos, 2.5);
     if (nearRat) return { type: 'rat', target: nearRat };
 
     const nearAgent = agentManager.getAgentAt(checkPos, 3.5);
     if (nearAgent) return { type: 'agent', target: nearAgent };
+
+    const nearAnimal = animalManager.getAnimalAt(checkPos, 3.5);
+    if (nearAnimal) return { type: 'animal', target: nearAnimal };
+
+    const nearPlayer = remotePlayerManager.getPlayerAt(checkPos, 3.5);
+    if (nearPlayer) return { type: 'player', target: nearPlayer };
 
     return null;
 }
@@ -235,10 +268,14 @@ function openInteractionMenu() {
     interactionMenuOpen = true;
 
     const isRat = found.type === 'rat';
+    const isAnimal = found.type === 'animal';
+    const isPlayer = found.type === 'player';
     const title = interactionMenu.querySelector('.im-title');
-    title.textContent = isRat ? `🐀 ${found.target.name}` : `🧑 ${found.target.name}`;
+    const emoji = isRat ? '🐀' : isAnimal ? '🍗' : '🧑';
+    title.textContent = `${emoji} ${found.target.name || found.target.type}`;
 
-    interactionMenu.querySelectorAll('.agent-btn').forEach(b => b.style.display = isRat ? 'none' : 'block');
+    const showAgentBtns = !isRat && !isAnimal;
+    interactionMenu.querySelectorAll('.agent-btn').forEach(b => b.style.display = showAgentBtns ? 'block' : 'none');
     interactionMenu.querySelectorAll('.rat-btn').forEach(b => {
         if (isRat) {
             b.style.display = 'block';
@@ -257,14 +294,15 @@ function openInteractionMenu() {
             b.style.display = 'none';
         }
     });
+    interactionMenu.querySelectorAll('.animal-btn').forEach(b => b.style.display = isAnimal ? 'block' : 'none');
     const chatSection = interactionMenu.querySelector('.agent-chat');
-    if (chatSection) chatSection.style.display = isRat ? 'none' : 'flex';
+    if (chatSection) chatSection.style.display = (!isRat && !isAnimal) ? 'flex' : 'none';
 
     interactionMenu.style.display = 'block';
     document.exitPointerLock();
     setTimeout(() => {
         const chatInput = document.getElementById('chat-input');
-        if (chatInput && !isRat) chatInput.focus();
+        if (chatInput && !isRat && !isAnimal) chatInput.focus();
     }, 100);
 }
 
@@ -290,13 +328,31 @@ interactionMenu.querySelectorAll('.im-btn').forEach(btn => {
             } else if (action === 'kiss') {
                 interactionTarget.kiss();
                 sound.playTone(600, 0.2, 'sine', 0.06);
-                addChatMessage(`You blew a kiss at ${interactionTarget.name}`);
+                particles.emitHearts(interactionTarget.getPosition().x, interactionTarget.getPosition().y, interactionTarget.getPosition().z);
+                addChatMessage(`You blew a kiss at ${interactionTarget.name} 💕`);
             } else if (action === 'wave') {
                 interactionTarget.wave();
                 sound.playTone(440, 0.1, 'sine', 0.05);
                 addChatMessage(`You wave at ${interactionTarget.name}`);
             }
             network.sendInteraction(action, 'agent', interactionTarget.name, undefined, getPlayerName());
+        } else if (interactionType === 'player') {
+            const rpName = interactionTarget.name || 'Player';
+            if (action === 'hit') {
+                sound.playTone(200, 0.15, 'square', 0.08);
+                addChatMessage(`You hit ${rpName}`);
+                network.sendInteraction('hit', 'player', null, undefined, getPlayerName());
+            } else if (action === 'kiss') {
+                sound.playTone(600, 0.2, 'sine', 0.06);
+                const ppos = interactionTarget.group.position;
+                particles.emitHearts(ppos.x, ppos.y, ppos.z);
+                addChatMessage(`You blew a kiss at ${rpName} 💕`);
+                network.sendInteraction('kiss', 'player', null, undefined, getPlayerName());
+            } else if (action === 'wave') {
+                sound.playTone(440, 0.1, 'sine', 0.05);
+                addChatMessage(`You wave at ${rpName}`);
+                network.sendInteraction('wave', 'player', null, undefined, getPlayerName());
+            }
         } else if (interactionType === 'rat') {
             if (action === 'pet') {
                 if (interactionTarget.pet()) {
@@ -317,6 +373,15 @@ interactionMenu.querySelectorAll('.im-btn').forEach(btn => {
                 sound.squeak();
                 addChatMessage(`${interactionTarget.name} is now following you!`);
             }
+        } else if (interactionType === 'animal') {
+            const pos = interactionTarget.getPosition();
+            const drop = interactionTarget.damage(1);
+            if (drop) {
+                player.addFood(drop);
+                addChatMessage(`Got ${drop.replace('_', ' ')}`);
+                sound.playTone(300, 0.2, 'square', 0.06);
+            }
+            updateHealthBar();
         }
         closeInteractionMenu();
     });
@@ -345,7 +410,6 @@ async function sendChatMessage() {
         addChatMessage(`You → ${target.name}: ${msg}`);
         target.showMessage(`You: ${msg}`, 5);
         network.sendInteraction('message', 'agent', target.name, msg, getPlayerName());
-
         const response = await askGLM(target.name, getPlayerName(), msg);
         if (target.alive) {
             target.showMessage(response, 6);
@@ -377,7 +441,27 @@ document.addEventListener('mousedown', (e) => {
     if (!locked) return;
     if (interactionMenu.style.display === 'block') return;
     sound.resume();
-    if (e.button === 0) player.breakBlock();
+    if (player.isDead) return;
+    if (e.button === 0) {
+        if (player.targetBlock && player.targetBlock.block === BLOCK.CAMPFIRE) {
+            cookNearby();
+        }
+        player.breakBlock();
+        const forward = new THREE.Vector3(0, 0, -1);
+        forward.applyQuaternion(camera.quaternion);
+        const checkPos = camera.position.clone().add(forward.multiplyScalar(3));
+        const nearAnimal = animalManager.getAnimalAt(checkPos, 3.5);
+        if (nearAnimal) {
+            const pos = nearAnimal.getPosition();
+            const drop = nearAnimal.damage(1);
+            if (drop) {
+                player.addFood(drop);
+                addChatMessage(`Got ${drop.replace('_', ' ')}`);
+                sound.playTone(300, 0.2, 'square', 0.06);
+                updateHealthBar();
+            }
+        }
+    }
     if (e.button === 2) player.placeBlock();
 });
 document.addEventListener('contextmenu', (e) => e.preventDefault());
@@ -394,6 +478,28 @@ window.addEventListener('resize', () => {
     camera.updateProjectionMatrix();
     renderer.setSize(window.innerWidth, window.innerHeight);
 });
+
+function cookNearby() {
+    const px = Math.floor(player.position.x);
+    const py = Math.floor(player.position.y);
+    const pz = Math.floor(player.position.z);
+    const rawTypes = ['raw_chicken', 'raw_beef', 'raw_pork'];
+    const cookedTypes = ['cooked_chicken', 'cooked_beef', 'cooked_pork'];
+    for (const raw of rawTypes) {
+        if (player.inventory[raw] > 0) {
+            player.inventory[raw]--;
+            if (player.inventory[raw] <= 0) delete player.inventory[raw];
+            const idx = rawTypes.indexOf(raw);
+            player.addFood(cookedTypes[idx]);
+            addChatMessage(`Cooked ${raw.replace('_', ' ')}!`);
+            sound.playTone(400, 0.1, 'sine', 0.05);
+            sound.playTone(600, 0.1, 'sine', 0.05);
+            updateHealthBar();
+            return;
+        }
+    }
+    addChatMessage('No raw meat to cook');
+}
 
 function showInteraction(msg, forced = false) {
     interactionEl.textContent = msg;
@@ -482,9 +588,11 @@ populateLoadSelect();
 
 network.onPlayerJoin = (peerId, name) => {
     remotePlayerManager.createPlayer(peerId, name);
+    updatePlayerList();
 };
 network.onPlayerLeave = (peerId) => {
     remotePlayerManager.removePlayer(peerId);
+    updatePlayerList();
 };
 network.onSeedReceived = (seed) => {
     world.seed = seed;
@@ -504,17 +612,24 @@ network.onInteraction = (data) => {
     const fromName = data.from || 'Player';
     if (data.action === 'wave') {
         showInteraction(`${fromName} waves at you! 👋`, true);
+        addChatMessage(`${fromName} waves at you`);
     } else if (data.action === 'hit') {
         showInteraction(`${fromName} hit you! 👊`, true);
         sound.playTone(200, 0.15, 'square', 0.08);
+        player.damage(5);
+        addChatMessage(`${fromName} hit you!`);
     } else if (data.action === 'kiss') {
         showInteraction(`${fromName} blew a kiss! 😘`, true);
+        particles.emitHearts(player.position.x, player.position.y, player.position.z);
+        addChatMessage(`${fromName} blew a kiss! 💕`);
     } else if (data.action === 'message' && data.message) {
         showInteraction(`${fromName}: ${data.message}`, true);
+        addChatMessage(`${fromName}: ${data.message}`);
     }
 };
 
 setupHotbar();
+updateHealthBar();
 
 let lastTime = performance.now();
 let frames = 0, fps = 0, fpsTimer = 0;
@@ -532,6 +647,14 @@ function gameLoop() {
     if (fpsTimer >= 1) { fps = frames; frames = 0; fpsTimer = 0; }
 
     if (locked) {
+        if (player.isDead) {
+            if (player.respawnTimer <= 0) {
+                player.respawn(spawnPos);
+                const deathEl = document.getElementById('death-screen');
+                if (deathEl) deathEl.style.display = 'none';
+                updateHealthBar();
+            }
+        }
         player.update(dt);
         updateChatLog(dt);
     }
@@ -541,6 +664,7 @@ function gameLoop() {
     particles.update(dt);
     ratManager.update(dt, player.position);
     agentManager.update(dt, player.position);
+    animalManager.update(dt, player.position);
     network.update(dt, remotePlayerManager);
 
     const remotePositions = [];
@@ -550,17 +674,23 @@ function gameLoop() {
     minimap.update(dt, player.position, agentManager.agents, ratManager.rats);
     minimap.setRemotePlayers(remotePositions);
 
-    if (locked && interactionMenu.style.display === 'none') {
+    if (locked && interactionMenu.style.display === 'none' && !player.isDead) {
         const forward = new THREE.Vector3(0, 0, -1);
         forward.applyQuaternion(camera.quaternion);
         const checkPos = camera.position.clone().add(forward.multiplyScalar(3));
 
         const nearRat = ratManager.getRatAt(checkPos, 3);
         const nearAgent = agentManager.getAgentAt(checkPos, 4);
+        const nearAnimal = animalManager.getAnimalAt(checkPos, 3.5);
+        const nearPlayer = remotePlayerManager.getPlayerAt(checkPos, 3.5);
 
         if (showInteraction._forced) {
         } else if (nearRat) {
-            showInteraction(`Press E → ${nearRat.name} ${nearRat.isKept ? '(following you)' : ''} 🐀`);
+            showInteraction(`Press E → ${nearRat.name} ${nearRat.isKept ? '(following)' : ''} 🐀`);
+        } else if (nearAnimal) {
+            showInteraction(`Press E → ${nearAnimal.type} 🍗 | Click to attack`);
+        } else if (nearPlayer) {
+            showInteraction(`Press E → ${nearPlayer.name} 🧑`);
         } else if (nearAgent) {
             showInteraction(`Press E → ${nearAgent.name} 🧑`);
         } else if (interactionEl.style.display === 'block') {
@@ -592,8 +722,9 @@ function gameLoop() {
     const cz = Math.floor(player.position.z / CHUNK_SIZE);
     const rats = ratManager.rats.length;
     const agents = agentManager.agents.length;
+    const animals = animalManager.animals.length;
     const players = network.connections.size;
-    debugEl.innerHTML = `FPS: ${fps}<br>XYZ: ${player.position.x.toFixed(1)} ${player.position.y.toFixed(1)} ${player.position.z.toFixed(1)}<br>Chunk: ${cx} ${cz}<br>Time: ${dayNight.getTimeString()}${player.flying ? '<br>FLYING' : ''}${player.inWater ? '<br>SWIMMING' : ''}<br>Rats: ${rats} | Agents: ${agents} | Players: ${players}${agentMsgStr}`;
+    debugEl.innerHTML = `FPS: ${fps}<br>XYZ: ${player.position.x.toFixed(1)} ${player.position.y.toFixed(1)} ${player.position.z.toFixed(1)}<br>Chunk: ${cx} ${cz}<br>Time: ${dayNight.getTimeString()}${player.flying ? '<br>FLYING' : ''}${player.inWater ? '<br>SWIMMING' : ''}<br>Rats: ${rats} | Agents: ${agents} | Animals: ${animals} | Players: ${players}${agentMsgStr}`;
 
     renderer.render(scene, camera);
 } catch (e) {

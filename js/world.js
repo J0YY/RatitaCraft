@@ -145,6 +145,7 @@ export class World {
 
         this.generateTrees(chunk);
         this.generateFlora(chunk);
+        this.generateFoodTrees(chunk);
     }
 
     generateFlora(chunk) {
@@ -172,6 +173,62 @@ export class World {
                     } else if (flowerNoise > 0.0) {
                         chunk.setBlock(x, height + 1, z, BLOCK.YELLOW_FLOWER);
                     }
+                }
+            }
+        }
+    }
+
+    generateFoodTrees(chunk) {
+        const { cx, cz } = chunk;
+        const ox = cx * CHUNK_SIZE;
+        const oz = cz * CHUNK_SIZE;
+
+        for (let z = 2; z < CHUNK_SIZE - 2; z++) {
+            for (let x = 2; x < CHUNK_SIZE - 2; x++) {
+                const wx = ox + x;
+                const wz = oz + z;
+                const height = this.getHeight(wx, wz);
+                if (height <= SEA_LEVEL + 1 || height > SEA_LEVEL + 16) continue;
+
+                const treeNoise = this.noise6.noise2D(wx * 1.2, wz * 1.2);
+                if (treeNoise < 0.75) continue;
+                if (this.noise5.noise2D(wx * 3, wz * 3) > 0.3) continue;
+
+                const surfaceBlock = chunk.getBlock(x, height, z);
+                if (surfaceBlock !== BLOCK.GRASS) continue;
+
+                const isApple = this.noise4.noise2D(wx * 5, wz * 5) > 0;
+                const trunkH = 3 + Math.floor(Math.abs(this.noise2.noise2D(wx * 4, wz * 4)) * 2);
+
+                for (let ty = 1; ty <= trunkH; ty++) {
+                    if (height + ty < CHUNK_HEIGHT)
+                        chunk.setBlock(x, height + ty, z, BLOCK.WOOD);
+                }
+
+                const leafBase = height + trunkH - 1;
+                const leafTop = height + trunkH + 1;
+                for (let ly = leafBase; ly <= leafTop; ly++) {
+                    const dist = ly < leafTop ? 2 : 1;
+                    for (let lx = -dist; lx <= dist; lx++) {
+                        for (let lz = -dist; lz <= dist; lz++) {
+                            if (Math.abs(lx) === dist && Math.abs(lz) === dist) continue;
+                            const fx = x + lx, fz = z + lz;
+                            if (fx >= 0 && fx < CHUNK_SIZE && fz >= 0 && fz < CHUNK_SIZE && ly < CHUNK_HEIGHT) {
+                                if (chunk.getBlock(fx, ly, fz) === BLOCK.AIR)
+                                    chunk.setBlock(fx, ly, fz, BLOCK.LEAVES);
+                            }
+                        }
+                    }
+                }
+
+                const fruitType = isApple ? BLOCK.APPLE : BLOCK.BANANA;
+                const fruitY = height + trunkH;
+                const fruitOffsets = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+                const offset = fruitOffsets[Math.floor(Math.abs(this.noise.noise2D(wx * 7, wz * 7)) * 4)];
+                const fx2 = x + offset[0], fz2 = z + offset[1];
+                if (fx2 >= 0 && fx2 < CHUNK_SIZE && fz2 >= 0 && fz2 < CHUNK_SIZE && fruitY + 1 < CHUNK_HEIGHT) {
+                    if (chunk.getBlock(fx2, fruitY + 1, fz2) === BLOCK.AIR)
+                        chunk.setBlock(fx2, fruitY + 1, fz2, fruitType);
                 }
             }
         }
@@ -268,6 +325,7 @@ export class World {
     isBlockSolid(wx, wy, wz) {
         const b = this.getBlock(wx, wy, wz);
         return b !== BLOCK.AIR && b !== BLOCK.WATER && b !== BLOCK.RED_FLOWER
-            && b !== BLOCK.YELLOW_FLOWER && b !== BLOCK.TALL_GRASS;
+            && b !== BLOCK.YELLOW_FLOWER && b !== BLOCK.TALL_GRASS
+            && b !== BLOCK.APPLE && b !== BLOCK.BANANA && b !== BLOCK.CAMPFIRE;
     }
 }

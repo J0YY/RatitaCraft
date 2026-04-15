@@ -3,7 +3,8 @@ const BLOCK = {
     WOOD: 5, LEAVES: 6, WATER: 7, COBBLESTONE: 8,
     PLANKS: 9, BEDROCK: 10, SNOW: 11, GLASS: 12,
     COAL_ORE: 13, IRON_ORE: 14, GOLD_ORE: 15, RED_FLOWER: 16,
-    YELLOW_FLOWER: 17, TALL_GRASS: 18, GRAVEL: 19, BRICK: 20
+    YELLOW_FLOWER: 17, TALL_GRASS: 18, GRAVEL: 19, BRICK: 20,
+    APPLE: 21, BANANA: 22, CAMPFIRE: 23
 };
 
 const BLOCK_TEXTURES = {
@@ -27,6 +28,9 @@ const BLOCK_TEXTURES = {
     [BLOCK.TALL_GRASS]:  [19, 19, 19],
     [BLOCK.GRAVEL]:      [20, 20, 20],
     [BLOCK.BRICK]:       [21, 21, 21],
+    [BLOCK.APPLE]:       [22, 22, 22],
+    [BLOCK.BANANA]:      [23, 23, 23],
+    [BLOCK.CAMPFIRE]:    [24, 24, 24],
 };
 
 const BLOCK_NAMES = {
@@ -37,28 +41,25 @@ const BLOCK_NAMES = {
     [BLOCK.COAL_ORE]: 'Coal', [BLOCK.IRON_ORE]: 'Iron', [BLOCK.GOLD_ORE]: 'Gold',
     [BLOCK.RED_FLOWER]: 'Rose', [BLOCK.YELLOW_FLOWER]: 'Dandelion',
     [BLOCK.TALL_GRASS]: 'Grass', [BLOCK.GRAVEL]: 'Gravel', [BLOCK.BRICK]: 'Brick',
+    [BLOCK.APPLE]: 'Apple', [BLOCK.BANANA]: 'Banana', [BLOCK.CAMPFIRE]: 'Campfire',
 };
 
 const TRANSPARENT = new Set([BLOCK.AIR, BLOCK.WATER, BLOCK.GLASS, BLOCK.LEAVES,
-    BLOCK.RED_FLOWER, BLOCK.YELLOW_FLOWER, BLOCK.TALL_GRASS]);
+    BLOCK.RED_FLOWER, BLOCK.YELLOW_FLOWER, BLOCK.TALL_GRASS, BLOCK.APPLE, BLOCK.BANANA]);
 
 const NON_SOLID = new Set([BLOCK.AIR, BLOCK.WATER, BLOCK.RED_FLOWER,
-    BLOCK.YELLOW_FLOWER, BLOCK.TALL_GRASS]);
+    BLOCK.YELLOW_FLOWER, BLOCK.TALL_GRASS, BLOCK.APPLE, BLOCK.BANANA, BLOCK.CAMPFIRE]);
 
 const HOTBAR_BLOCKS = [
     BLOCK.GRASS, BLOCK.DIRT, BLOCK.STONE, BLOCK.SAND,
     BLOCK.WOOD, BLOCK.PLANKS, BLOCK.COBBLESTONE, BLOCK.BRICK, BLOCK.GLASS
 ];
 
-const HOTBAR_BLOCKS_EXTENDED = [
-    ...HOTBAR_BLOCKS,
-    BLOCK.LEAVES, BLOCK.COAL_ORE, BLOCK.IRON_ORE, BLOCK.GOLD_ORE,
-    BLOCK.RED_FLOWER, BLOCK.YELLOW_FLOWER, BLOCK.GRAVEL, BLOCK.SNOW, BLOCK.GLASS
-];
+const FOOD_BLOCKS = new Set([BLOCK.APPLE, BLOCK.BANANA]);
 
 const TEX = 16;
 const COLS = 8;
-const ROWS = 4;
+const ROWS = 5;
 
 function srand(x, y) {
     let n = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
@@ -84,12 +85,7 @@ function createAtlas() {
                     { g.fillStyle = srand(x, y) > 0.5 ? dark : light; g.fillRect(x, y, 1, 1); }
     }
 
-    // 0: Grass top
-    slot(0, (g, s) => {
-        fillNoise(g, s, '#5B8C32', '#4A7A28', '#6B9C3E', 0.7, 100, 100);
-    });
-
-    // 1: Grass side
+    slot(0, (g, s) => { fillNoise(g, s, '#5B8C32', '#4A7A28', '#6B9C3E', 0.7, 100, 100); });
     slot(1, (g, s) => {
         fillNoise(g, s, '#8B6B4A', '#7A5C3D', '#9C7B5A', 0.8, 200, 200);
         g.fillStyle = '#5B8C32'; g.fillRect(0, 0, s, 3);
@@ -99,27 +95,17 @@ function createAtlas() {
             if (srand(x + 400, 50) > 0.5) { g.fillStyle = '#4A7A28'; g.fillRect(x, h - 1, 1, 1); }
         }
     });
-
-    // 2: Dirt
     slot(2, (g, s) => { fillNoise(g, s, '#8B6B4A', '#7A5C3D', '#9C7B5A', 0.7, 200, 200); });
-
-    // 3: Stone
     slot(3, (g, s) => {
         fillNoise(g, s, '#8A8A8A', '#6A6A6A', '#9A9A9A', 0.85, 500, 500);
         g.fillStyle = '#707070';
         g.fillRect(2, 4, 6, 1); g.fillRect(8, 10, 5, 1); g.fillRect(4, 14, 4, 1);
     });
-
-    // 4: Sand
     slot(4, (g, s) => { fillNoise(g, s, '#D4C484', '#C4B474', '#E4D494', 0.6, 600, 600); });
-
-    // 5: Wood side
     slot(5, (g, s) => {
         fillNoise(g, s, '#6B4C2A', '#5B3C1A', '#7B5C3A', 0.3, 700, 700);
         for (let x = 0; x < s; x += 3) { g.fillStyle = '#4A2C0A'; g.fillRect(x, 0, 1, s); }
     });
-
-    // 6: Wood top
     slot(6, (g, s) => {
         g.fillStyle = '#B8945A'; g.fillRect(0, 0, s, s);
         for (let r = 2; r < s / 2; r += 2) {
@@ -128,14 +114,8 @@ function createAtlas() {
         }
         g.fillStyle = '#6B4C2A'; g.fillRect(s/2-1, s/2-1, 2, 2);
     });
-
-    // 7: Leaves
     slot(7, (g, s) => { fillNoise(g, s, '#3B7A1A', '#2B6A0A', '#4B8A2A', 0.6, 800, 800); });
-
-    // 8: Water
     slot(8, (g, s) => { fillNoise(g, s, '#3366AA', '#2255AA', '#4477BB', 0.5, 900, 900); });
-
-    // 9: Cobblestone
     slot(9, (g, s) => {
         g.fillStyle = '#7A7A7A'; g.fillRect(0, 0, s, s);
         [[0,0,6,5],[7,0,9,4],[6,5,5,5],[12,4,4,6],[0,6,5,5],[0,12,7,4],[8,10,5,6],[14,10,2,6]]
@@ -145,8 +125,6 @@ function createAtlas() {
                 g.strokeStyle='#555555'; g.lineWidth=1; g.strokeRect(sx,sy,sw,sh);
             });
     });
-
-    // 10: Planks
     slot(10, (g, s) => {
         g.fillStyle = '#BC9458'; g.fillRect(0, 0, s, s);
         for (let py = 0; py < s; py += 4) {
@@ -156,52 +134,35 @@ function createAtlas() {
             g.fillStyle = '#8A6B3A'; g.fillRect(0, py + 3, s, 1);
         }
     });
-
-    // 11: Bedrock
     slot(11, (g, s) => { fillNoise(g, s, '#444444', '#333333', '#555555', 0.5, 1100, 1100); });
-
-    // 12: Snow
     slot(12, (g, s) => { fillNoise(g, s, '#F0F0F0', '#E0E0E8', '#FFFFFF', 0.7, 1200, 1200); });
-
-    // 13: Glass
     slot(13, (g, s) => {
         g.fillStyle = 'rgba(200,220,255,0.3)'; g.fillRect(0, 0, s, s);
         g.strokeStyle = '#C0D0E0'; g.lineWidth = 1;
         g.strokeRect(0,0,s,s); g.strokeRect(4,4,s-8,s-8);
         g.fillStyle = 'rgba(255,255,255,0.4)'; g.fillRect(1,1,3,3);
     });
-
-    // 14: Coal ore
     slot(14, (g, s) => {
         fillNoise(g, s, '#8A8A8A', '#6A6A6A', '#9A9A9A', 0.85, 500, 500);
-        const spots = [[3,3],[8,6],[5,11],[11,3],[2,8],[12,12]];
-        spots.forEach(([sx,sy]) => {
+        [[3,3],[8,6],[5,11],[11,3],[2,8],[12,12]].forEach(([sx,sy]) => {
             g.fillStyle = '#222222'; g.fillRect(sx,sy,2,2);
             g.fillStyle = '#333333'; g.fillRect(sx+1,sy,1,1);
         });
     });
-
-    // 15: Iron ore
     slot(15, (g, s) => {
         fillNoise(g, s, '#8A8A8A', '#6A6A6A', '#9A9A9A', 0.85, 500, 500);
-        const spots = [[3,3],[9,5],[5,10],[12,2],[2,8],[11,12]];
-        spots.forEach(([sx,sy]) => {
+        [[3,3],[9,5],[5,10],[12,2],[2,8],[11,12]].forEach(([sx,sy]) => {
             g.fillStyle = '#D4AA7A'; g.fillRect(sx,sy,2,2);
             g.fillStyle = '#C49A6A'; g.fillRect(sx+1,sy,1,1);
         });
     });
-
-    // 16: Gold ore
     slot(16, (g, s) => {
         fillNoise(g, s, '#8A8A8A', '#6A6A6A', '#9A9A9A', 0.85, 500, 500);
-        const spots = [[4,4],[9,7],[5,11],[12,4],[3,9],[10,13]];
-        spots.forEach(([sx,sy]) => {
+        [[4,4],[9,7],[5,11],[12,4],[3,9],[10,13]].forEach(([sx,sy]) => {
             g.fillStyle = '#FFD700'; g.fillRect(sx,sy,2,2);
             g.fillStyle = '#DAA520'; g.fillRect(sx+1,sy,1,1);
         });
     });
-
-    // 17: Red flower
     slot(17, (g, s) => {
         g.clearRect(0, 0, s, s);
         g.fillStyle = '#2D5A1E'; g.fillRect(7, 8, 2, 8);
@@ -210,8 +171,6 @@ function createAtlas() {
         g.fillStyle = '#FF3333'; g.fillRect(7, 5, 2, 2);
         g.fillStyle = '#FFDD00'; g.fillRect(7, 6, 2, 1);
     });
-
-    // 18: Yellow flower
     slot(18, (g, s) => {
         g.clearRect(0, 0, s, s);
         g.fillStyle = '#2D5A1E'; g.fillRect(7, 8, 2, 8);
@@ -220,8 +179,6 @@ function createAtlas() {
         g.fillStyle = '#FFEE44'; g.fillRect(7, 5, 2, 2);
         g.fillStyle = '#CC9900'; g.fillRect(7, 6, 2, 1);
     });
-
-    // 19: Tall grass
     slot(19, (g, s) => {
         g.clearRect(0, 0, s, s);
         for (let x = 3; x < 13; x += 2) {
@@ -232,8 +189,6 @@ function createAtlas() {
             g.fillRect(x + 1, s - h + 1, 1, h - 1);
         }
     });
-
-    // 20: Gravel
     slot(20, (g, s) => {
         g.fillStyle = '#888888'; g.fillRect(0, 0, s, s);
         for (let i = 0; i < 30; i++) {
@@ -244,8 +199,6 @@ function createAtlas() {
             g.fillRect(px, py, sz, sz);
         }
     });
-
-    // 21: Brick
     slot(21, (g, s) => {
         g.fillStyle = '#8B4433'; g.fillRect(0, 0, s, s);
         const brickColor = ['#9B5443', '#7B3423', '#8B4433'];
@@ -266,6 +219,31 @@ function createAtlas() {
             }
         }
     });
+    // 22: Apple
+    slot(22, (g, s) => {
+        g.clearRect(0, 0, s, s);
+        g.fillStyle = '#2D5A1E'; g.fillRect(7, 2, 2, 5);
+        g.fillStyle = '#CC2222'; g.fillRect(4, 5, 8, 8);
+        g.fillStyle = '#EE3333'; g.fillRect(5, 6, 6, 6);
+        g.fillStyle = '#FF6666'; g.fillRect(6, 7, 2, 2);
+    });
+    // 23: Banana
+    slot(23, (g, s) => {
+        g.clearRect(0, 0, s, s);
+        g.fillStyle = '#FFE033'; g.fillRect(4, 5, 8, 7);
+        g.fillStyle = '#FFD700'; g.fillRect(5, 4, 6, 8);
+        g.fillStyle = '#E6C200'; g.fillRect(5, 10, 6, 2);
+        g.fillStyle = '#8B6B2A'; g.fillRect(7, 2, 2, 3);
+    });
+    // 24: Campfire
+    slot(24, (g, s) => {
+        g.clearRect(0, 0, s, s);
+        g.fillStyle = '#6B4C2A'; g.fillRect(2, 10, 4, 5); g.fillRect(10, 10, 4, 5);
+        g.fillStyle = '#8B6B3A'; g.fillRect(3, 9, 10, 2);
+        g.fillStyle = '#FF6600'; g.fillRect(5, 4, 6, 6);
+        g.fillStyle = '#FFAA00'; g.fillRect(6, 5, 4, 4);
+        g.fillStyle = '#FFDD44'; g.fillRect(7, 6, 2, 2);
+    });
 
     return c;
 }
@@ -281,4 +259,4 @@ function getUVs(textureIndex) {
     };
 }
 
-export { BLOCK, BLOCK_TEXTURES, BLOCK_NAMES, TRANSPARENT, NON_SOLID, HOTBAR_BLOCKS, HOTBAR_BLOCKS_EXTENDED, TEX, COLS, ROWS, createAtlas, getUVs };
+export { BLOCK, BLOCK_TEXTURES, BLOCK_NAMES, TRANSPARENT, NON_SOLID, HOTBAR_BLOCKS, FOOD_BLOCKS, TEX, COLS, ROWS, createAtlas, getUVs };

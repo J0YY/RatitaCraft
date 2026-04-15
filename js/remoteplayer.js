@@ -158,6 +158,16 @@ export class RemotePlayerManager {
         }
     }
 
+    getPlayerAt(pos, maxDist = 3.0) {
+        let closest = null;
+        let closestDist = maxDist;
+        for (const [peerId, p] of this.players) {
+            const d = p.group.position.distanceTo(pos);
+            if (d < closestDist) { closestDist = d; closest = { peerId, ...p, group: p.group }; }
+        }
+        return closest;
+    }
+
     dispose() {
         for (const peerId of this.players.keys()) {
             this.removePlayer(peerId);

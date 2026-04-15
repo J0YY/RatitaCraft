@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { CHUNK_HEIGHT } from './chunk.js';
-import { HOTBAR_BLOCKS, BLOCK } from './textures.js';
+import { HOTBAR_BLOCKS, BLOCK, FOOD_BLOCKS } from './textures.js';
 
 const GRAVITY = -28;
 const WATER_GRAVITY = -4;
@@ -47,12 +47,26 @@ export class Player {
         this.bobAmount = 0;
         this.headBob = 0;
 
+        this.health = 100;
+        this.maxHealth = 100;
+        this.hunger = 100;
+        this.maxHunger = 100;
+        this.hungerTimer = 0;
+        this.hungerRate = 30;
+        this.isDead = false;
+        this.respawnTimer = 0;
+        this.inventory = {};
+        this.selectedFood = null;
+
         this.onBreak = null;
         this.onPlace = null;
         this.onFootstep = null;
         this.onJump = null;
         this.onLand = null;
         this.onSlotChange = null;
+        this.onHealthChange = null;
+        this.onHungerChange = null;
+        this.onEat = null;
 
         document.addEventListener('keydown', (e) => {
             this.keys[e.code] = true;
@@ -60,6 +74,9 @@ export class Player {
             if (e.code >= 'Digit1' && e.code <= 'Digit9') {
                 this.selectedBlock = parseInt(e.code.charAt(5)) - 1;
                 if (this.onSlotChange) this.onSlotChange();
+            }
+            if (e.code === 'KeyQ') {
+                this.eatFood();
             }
         });
         document.addEventListener('keyup', (e) => { this.keys[e.code] = false; });
@@ -71,8 +88,76 @@ export class Player {
         });
     }
 
+    addFood(type, amount = 1) {
+        if (!this.inventory[type]) this.inventory[type] = 0;
+        this.inventory[type] += amount;
+    }
+
+    hasFood() {
+        return Object.keys(this.inventory).some(k => this.inventory[k] > 0);
+    }
+
+    getFoodTypes() {
+        return Object.keys(this.inventory).filter(k => this.inventory[k] > 0);
+    }
+
+    eatFood() {
+        if (this.isDead) return;
+        const types = this.getFoodTypes();
+        if (types.length === 0) return;
+        const type = types[0];
+        const heal = this.getFoodHeal(type);
+        this.inventory[type]--;
+        if (this.inventory[type] <= 0) delete this.inventory[type];
+        this.hunger = Math.min(this.maxHunger, this.hunger + heal);
+        if (this.hunger > 80) this.health = Math.min(this.maxHealth, this.health + Math.floor((heal) / 2));
+        if (this.onEat) this.onEat(type, heal);
+        if (this.onHungerChange) this.onHungerChange();
+        if (this.onHealthChange) this.onHealthChange();
+    }
+
+    getFoodHeal(type) {
+        const heals = { apple: 10, banana: 8, raw_chicken: 5, raw_beef: 8, raw_pork: 7, cooked_chicken: 20, cooked_beef: 25, cooked_pork: 22 };
+        return heals[type] || 10;
+    }
+
+    damage(amount) {
+        if (this.isDead || this.flying) return;
+        this.health -= amount;
+        if (this.health <= 0) {
+            this.health = 0;
+            this.isDead = true;
+            this.respawnTimer = 3;
+        }
+        if (this.onHealthChange) this.onHealthChange();
+    }
+
+    respawn(spawnPos) {
+        this.health = this.maxHealth;
+        this.hunger = this.maxHunger;
+        this.isDead = false;
+        this.position.copy(spawnPos);
+        this.velocity.set(0, 0, 0);
+        this.inventory = {};
+        if (this.onHealthChange) this.onHealthChange();
+        if (this.onHungerChange) this.onHungerChange();
+    }
+
     update(dt) {
         dt = Math.min(dt, 0.05);
+
+        if (this.isDead) {
+            this.respawnTimer -= dt;
+            return;
+        }
+
+        this.hungerTimer += dt;
+        if (this.hungerTimer >= this.hungerRate) {
+            this.hungerTimer = 0;
+            this.hunger = Math.max(0, this.hunger - 1);
+            if (this.hunger <= 0) this.damage(1);
+            if (this.onHungerChange) this.onHungerChange();
+        }
 
         this.yaw -= this.mouseDX * this.sensitivity;
         this.pitch -= this.mouseDY * this.sensitivity;
@@ -137,11 +222,12 @@ export class Player {
 
         if (!this.wasOnGround && this.onGround) {
             if (this.onLand) this.onLand();
+            const fallSpeed = Math.abs(this.velocity.y);
+            if (fallSpeed > 15) this.damage(Math.floor((fallSpeed - 15) * 3));
         }
 
         if (!this.flying && this.position.y < -10) {
-            this.position.y = 50;
-            this.velocity.y = 0;
+            this.damage(100);
         }
 
         if (isMoving && this.onGround && !this.flying) {
@@ -248,6 +334,15 @@ export class Player {
         if (!this.targetBlock) return;
         const { x, y, z, block } = this.targetBlock;
         if (block === BLOCK.BEDROCK) return;
+
+        if (block === BLOCK.APPLE) {
+            this.addFood('apple');
+            if (this.onEat) this.onEat('apple', 0);
+        } else if (block === BLOCK.BANANA) {
+            this.addFood('banana');
+            if (this.onEat) this.onEat('banana', 0);
+        }
+
         this.world.setBlock(x, y, z, 0);
         if (this.onBreak) this.onBreak(x, y, z, block);
     }

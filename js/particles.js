@@ -13,11 +13,14 @@ const BLOCK_COLORS = {
     [BLOCK.BEDROCK]: [0x444444, 0x333333, 0x555555],
     [BLOCK.SNOW]: [0xF0F0F0, 0xE0E0E8, 0xFFFFFF],
     [BLOCK.GLASS]: [0xC0D0E0, 0xA0B0C0, 0xE0F0FF],
+    [BLOCK.BRICK]: [0x8B4433, 0x7B3423, 0x9B5443],
+    [BLOCK.GRAVEL]: [0x888888, 0x777777, 0x999999],
 };
 
 export class Particles {
-    constructor(scene) {
+    constructor(scene, camera) {
         this.scene = scene;
+        this.camera = camera;
         this.particles = [];
     }
 
@@ -45,36 +48,104 @@ export class Particles {
         }
     }
 
+    emitHearts(x, y, z, count = 12) {
+        for (let i = 0; i < count; i++) {
+            const size = 0.1 + Math.random() * 0.08;
+            const group = new THREE.Group();
+
+            const heartMat = new THREE.MeshBasicMaterial({ color: 0xFF2266, transparent: true });
+            const sphereGeo = new THREE.SphereGeometry(size * 0.45, 6, 6);
+            const leftBump = new THREE.Mesh(sphereGeo, heartMat);
+            leftBump.position.set(-size * 0.35, size * 0.25, 0);
+            group.add(leftBump);
+            const rightBump = new THREE.Mesh(sphereGeo, heartMat);
+            rightBump.position.set(size * 0.35, size * 0.25, 0);
+            group.add(rightBump);
+
+            const triGeo = new THREE.BufferGeometry();
+            const s = size;
+            const verts = new Float32Array([
+                -s * 0.8, s * 0.2, 0,
+                 s * 0.8, s * 0.2, 0,
+                 0, -s * 0.9, 0,
+            ]);
+            triGeo.setAttribute('position', new THREE.BufferAttribute(verts, 3));
+            triGeo.computeVertexNormals();
+            const tri = new THREE.Mesh(triGeo, heartMat);
+            group.add(tri);
+
+            const angle = Math.random() * Math.PI * 2;
+            const spread = 0.8 + Math.random() * 0.5;
+            group.position.set(
+                x + Math.sin(angle) * spread * 0.3,
+                y + 1.0 + Math.random() * 0.8,
+                z + Math.cos(angle) * spread * 0.3
+            );
+            group.lookAt(camera.position || new THREE.Vector3(x, y + 2, z));
+            this.scene.add(group);
+            this.particles.push({
+                mesh: group,
+                vx: Math.sin(angle) * (1.5 + Math.random() * 2),
+                vy: 3 + Math.random() * 4,
+                vz: Math.cos(angle) * (1.5 + Math.random() * 2),
+                life: 1.5 + Math.random() * 0.8,
+                age: 0,
+                heart: true,
+                spin: (Math.random() - 0.5) * 3,
+            });
+        }
+    }
+
     update(dt) {
         for (let i = this.particles.length - 1; i >= 0; i--) {
             const p = this.particles[i];
             p.age += dt;
             if (p.age >= p.life) {
                 this.scene.remove(p.mesh);
-                p.mesh.geometry.dispose();
-                p.mesh.material.dispose();
+                p.mesh.traverse(child => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) child.material.dispose();
+                });
                 this.particles.splice(i, 1);
                 continue;
             }
-            p.vy -= 15 * dt;
+            if (p.heart) {
+                p.vy -= 5 * dt;
+                p.vx *= (1 - dt * 0.5);
+                p.vz *= (1 - dt * 0.5);
+                p.mesh.rotation.z += p.spin * dt;
+            } else {
+                p.vy -= 15 * dt;
+                p.mesh.rotation.x += dt * 5;
+                p.mesh.rotation.z += dt * 3;
+            }
             p.mesh.position.x += p.vx * dt;
             p.mesh.position.y += p.vy * dt;
             p.mesh.position.z += p.vz * dt;
-            p.mesh.rotation.x += dt * 5;
-            p.mesh.rotation.z += dt * 3;
             const alpha = 1 - p.age / p.life;
-            p.mesh.material.opacity = alpha;
-            p.mesh.material.transparent = true;
             const s = 0.5 + alpha * 0.5;
             p.mesh.scale.set(s, s, s);
+            if (p.heart) {
+                p.mesh.traverse(child => {
+                    if (child.material) {
+                        child.material.opacity = alpha;
+                        child.material.transparent = true;
+                    }
+                });
+            } else {
+                p.mesh.material.opacity = alpha;
+                p.mesh.material.transparent = true;
+            }
         }
     }
 
     dispose() {
         for (const p of this.particles) {
             this.scene.remove(p.mesh);
-            p.mesh.geometry.dispose();
-            p.mesh.material.dispose();
+            p.mesh.traverse(child => {
+                if (child.geometry) child.geometry.dispose();
+                if (child.material) child.material.dispose();
+            });
         }
         this.particles = [];
     }

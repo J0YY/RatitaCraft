@@ -12,7 +12,7 @@ export class DayNightCycle {
 
         this.dayColor = new THREE.Color(0x87CEEB);
         this.sunsetColor = new THREE.Color(0xFF7733);
-        this.nightColor = new THREE.Color(0x0a0a2e);
+        this.nightColor = new THREE.Color(0x1a1a3e);
         this.dawnColor = new THREE.Color(0xFFAA66);
 
         this.sunLight = new THREE.Color(0xffffff);
@@ -104,7 +104,7 @@ export class DayNightCycle {
 
         let skyR, skyG, skyB, lightIntensity, ambientIntensity;
         const dayR = 0x87 / 255, dayG = 0xCE / 255, dayB = 0xEB / 255;
-        const nightR = 0x0a / 255, nightG = 0x0a / 255, nightB = 0x2e / 255;
+        const nightR = 0x1a / 255, nightG = 0x1a / 255, nightB = 0x3e / 255;
 
         if (sunHeight > 0.2) {
             skyR = dayR; skyG = dayG; skyB = dayB;
@@ -124,13 +124,15 @@ export class DayNightCycle {
                 0.3 + f * 0.5 + sunsetF * 0.3,
                 0.5 + f * 0.5
             );
-            lightIntensity = 0.15 + f * 0.65;
-            ambientIntensity = 0.15 + f * 0.45;
+            lightIntensity = 0.2 + f * 0.6;
+            ambientIntensity = 0.2 + f * 0.4;
         } else {
-            skyR = nightR; skyG = nightG; skyB = nightB;
-            this.dirLight.color.setRGB(0.27, 0.4, 0.67);
-            lightIntensity = 0.1;
-            ambientIntensity = 0.12;
+            skyR = nightR + (dayR - nightR) * 0.25;
+            skyG = nightG + (dayG - nightG) * 0.25;
+            skyB = nightB + (dayB - nightB) * 0.25;
+            this.dirLight.color.setRGB(0.35, 0.45, 0.7);
+            lightIntensity = 0.4;
+            ambientIntensity = 0.45;
         }
 
         this.scene.background.setRGB(skyR, skyG, skyB);
