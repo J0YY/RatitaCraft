@@ -216,6 +216,7 @@ let interactionMenuOpen = false;
 menuEl.addEventListener('click', (e) => {
     if (e.target.closest('button, input, select')) return;
     e.stopPropagation();
+    if (!network.ready) return;
     renderer.domElement.requestPointerLock();
     sound.init();
     sound.resume();
@@ -612,6 +613,11 @@ network.onInteraction = (data) => {
 setupHotbar();
 updateHealthBar();
 network.connect(world.seed);
+
+network.onReady = () => {
+    const prompt = document.getElementById('click-prompt');
+    if (prompt) prompt.innerHTML = 'click anywhere to play ✨';
+};
 
 let lastTime = performance.now();
 let frames = 0, fps = 0, fpsTimer = 0;

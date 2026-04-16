@@ -14,9 +14,11 @@ export class NetworkManager {
         this.onPlayerLeave = null;
         this.onSeedReceived = null;
         this.onInteraction = null;
+        this.onReady = null;
         this.syncTimer = 0;
         this.syncInterval = 1 / 20;
         this.connected = false;
+        this.ready = false;
         this.playerId = null;
         this._pendingBlocks = new Map();
         this._blockFlushTimer = 0;
@@ -106,7 +108,9 @@ export class NetworkManager {
             if (status === 'SUBSCRIBED') {
                 this.connected = true;
                 await this.channel.track({ id: this.playerId, name: this.playerNameFn() });
+                this.ready = true;
                 this.setStatus('Connected');
+                if (this.onReady) this.onReady();
             } else if (status === 'CHANNEL_ERROR') {
                 this.setStatus('Connection error');
             }
