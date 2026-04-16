@@ -1,0 +1,2 @@
+export const SUPABASE_URL = 'https://lwenczqotguhegwrxidw.supabase.co';
+export const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imx3ZW5jenFvdGd1aGVnd3J4aWR3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzYyNzk0MTUsImV4cCI6MjA5MTg1NTQxNX0.AzZN3TgZKLuYf53ZDZEWS9WKZTgU7i3r5Edh5xiY2Mg';
