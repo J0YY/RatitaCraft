@@ -4,6 +4,7 @@ body {
     overflow: hidden;
     background: #000;
     font-family: 'Courier New', monospace;
+    touch-action: none;
 }
 
 canvas { display: block; }
@@ -16,6 +17,8 @@ canvas { display: block; }
     display: flex; flex-direction: column; align-items: center; justify-content: center;
     z-index: 100; cursor: pointer; user-select: none;
     padding: 16px;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
 }
 
 .menu-header {
@@ -136,25 +139,34 @@ canvas { display: block; }
 .mp-btn.danger { color: #e88; border-color: rgba(255,80,80,0.3); }
 .mp-btn.danger:hover { background: rgba(255,80,80,0.15); }
 
-#join-code, #load-select {
-    background: rgba(255,255,255,0.08);
-    border: 1px solid rgba(255,255,255,0.18);
-    color: #fff; padding: 5px 8px; border-radius: 4px;
-    font-family: inherit; font-size: 12px;
-}
-#join-code { width: 100px; }
-#load-select { width: 130px; }
-#load-select option { background: #222; color: #fff; }
-
 #mp-status { margin-top: 6px; font-size: 10px; color: #888; }
 
-#room-code-display {
-    margin-top: 6px; font-size: 11px; color: #aaa;
-    display: flex; align-items: center; gap: 6px;
+/* ── Scope overlay ── */
+
+#scope-overlay {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 8; pointer-events: none;
+    background: rgba(0,0,0,0.5);
 }
-#room-code-display code {
-    background: rgba(255,255,255,0.1); padding: 2px 8px;
-    border-radius: 3px; font-size: 13px; color: #fff; letter-spacing: 1px;
+.scope-circle {
+    position: absolute; top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    width: 50vh; height: 50vh;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-radius: 50%;
+    background: transparent;
+    box-shadow: 0 0 0 100vmax rgba(0,0,0,0.5);
+}
+.scope-cross {
+    position: absolute; background: rgba(255,255,255,0.3);
+}
+.scope-h {
+    top: 50%; left: 0; width: 100%; height: 1px;
+    transform: translateY(-0.5px);
+}
+.scope-v {
+    top: 0; left: 50%; width: 1px; height: 100%;
+    transform: translateX(-0.5px);
 }
 
 /* ── Game HUD ── */
@@ -291,3 +303,106 @@ canvas { display: block; }
     font-size: 11px; color: #ccc; padding: 1px 0;
 }
 #player-list .pl-name.self { color: #8c8; }
+
+/* ── Touch Controls ── */
+
+#touch-controls {
+    position: fixed; top: 0; left: 0; width: 100%; height: 100%;
+    z-index: 9; pointer-events: none;
+}
+
+#joystick-zone {
+    position: absolute; bottom: 20px; left: 20px;
+    width: 140px; height: 140px;
+    pointer-events: auto;
+    z-index: 10;
+}
+
+#joystick-base {
+    width: 140px; height: 140px;
+    background: rgba(255,255,255,0.08);
+    border: 2px solid rgba(255,255,255,0.15);
+    border-radius: 50%;
+    position: relative;
+}
+
+#joystick-thumb {
+    width: 56px; height: 56px;
+    background: rgba(255,255,255,0.2);
+    border: 2px solid rgba(255,255,255,0.3);
+    border-radius: 50%;
+    position: absolute;
+    top: 50%; left: 50%;
+    transform: translate(-50%, -50%);
+    transition: none;
+}
+
+#look-zone {
+    position: absolute; top: 0; right: 0;
+    width: 50%; height: 100%;
+    pointer-events: auto;
+    z-index: 9;
+}
+
+#touch-buttons {
+    position: absolute; bottom: 20px; right: 20px;
+    display: flex; flex-direction: column; gap: 8px;
+    align-items: flex-end;
+    pointer-events: auto;
+    z-index: 10;
+}
+
+.touch-btn {
+    width: 52px; height: 52px;
+    background: rgba(255,255,255,0.1);
+    border: 1px solid rgba(255,255,255,0.2);
+    border-radius: 50%;
+    color: #fff; font-size: 20px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    touch-action: manipulation;
+}
+.touch-btn:active {
+    background: rgba(255,255,255,0.3);
+}
+
+#tb-jump { position: absolute; bottom: 140px; right: 0; }
+
+/* ── Mobile responsive ── */
+
+@media (max-width: 768px) {
+    .menu-header h1 { font-size: 28px; }
+    .menu-header .subtitle { font-size: 10px; }
+    .menu-grid { flex-direction: column; gap: 8px; max-width: 400px; }
+    .panel { padding: 8px 12px; }
+    .panel h3 { font-size: 11px; margin-bottom: 6px; }
+    .ctrl-grid { font-size: 10px; gap: 2px 8px; }
+    .key { font-size: 9px; padding: 1px 5px; min-width: 36px; }
+    .custom-row label { font-size: 10px; }
+    .click-prompt { font-size: 14px; }
+
+    #hotbar .slot { width: 40px; height: 40px; }
+    #hotbar .slot canvas { width: 28px; height: 28px; }
+    #hotbar .slot .number { font-size: 7px; }
+    #hotbar { bottom: 80px; }
+
+    #debug { font-size: 9px; padding: 4px 6px; max-width: 200px; }
+    #minimap { width: 80px !important; height: 80px !important; }
+
+    #interaction-menu {
+        bottom: 50%; left: 50%;
+        transform: translate(-50%, 50%);
+        min-width: 180px;
+    }
+
+    #chat-log { bottom: 130px; max-width: 200px; }
+    #chat-log .chat-msg { font-size: 9px; }
+}
+
+@media (max-width: 400px) {
+    .menu-header h1 { font-size: 22px; }
+    .menu-grid { gap: 6px; }
+    .panel { padding: 6px 10px; }
+    .cute-panel p { font-size: 10px; }
+}

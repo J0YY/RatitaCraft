@@ -13,6 +13,8 @@ const PLAYER_WIDTH = 0.6;
 const PLAYER_HEIGHT = 1.75;
 const EYE_HEIGHT = 1.62;
 const REACH = 7;
+const SCOPE_REACH = 50;
+const BOAT_SPEED = 8;
 
 export class Player {
     constructor(camera, world) {
@@ -67,6 +69,14 @@ export class Player {
         this.onHealthChange = null;
         this.onHungerChange = null;
         this.onEat = null;
+
+        this.scoped = false;
+        this.inBoat = false;
+        this.boatYaw = 0;
+
+        this.touchMoveX = 0;
+        this.touchMoveZ = 0;
+        this.touchJump = false;
 
         document.addEventListener('keydown', (e) => {
             this.keys[e.code] = true;
@@ -180,11 +190,22 @@ export class Player {
         if (this.keys['KeyS']) move.sub(forward);
         if (this.keys['KeyD']) move.add(right);
         if (this.keys['KeyA']) move.sub(right);
+        if (this.touchMoveX !== 0 || this.touchMoveZ !== 0) {
+            move.add(right.clone().multiplyScalar(this.touchMoveX));
+            move.add(forward.clone().multiplyScalar(this.touchMoveZ));
+        }
         if (move.length() > 0) move.normalize().multiplyScalar(speed);
 
         const isMoving = move.length() > 0.1;
         this.velocity.x = move.x;
         this.velocity.z = move.z;
+
+        if (this.inBoat) {
+            this.updateBoat(dt);
+            this.position.x += this.velocity.x * dt;
+            this.position.z += this.velocity.z * dt;
+            this.position.y = 20.5;
+        } else {
 
         this.inWater = this.world.getBlock(
             Math.floor(this.position.x),
@@ -199,11 +220,11 @@ export class Player {
         } else if (this.inWater) {
             this.velocity.y += WATER_GRAVITY * dt;
             this.velocity.y = Math.max(this.velocity.y, -3);
-            if (this.keys['Space']) this.velocity.y = SWIM_SPEED;
+            if (this.keys['Space'] || this.touchJump) this.velocity.y = SWIM_SPEED;
             if (this.keys['ShiftLeft'] || this.keys['ShiftRight']) this.velocity.y = -SWIM_SPEED * 0.5;
         } else {
             this.velocity.y += GRAVITY * dt;
-            if (this.keys['Space'] && this.onGround) {
+            if ((this.keys['Space'] || this.touchJump) && this.onGround) {
                 this.velocity.y = JUMP_VEL;
                 this.onGround = false;
                 if (this.onJump) this.onJump();
@@ -219,6 +240,7 @@ export class Player {
         this.collide('y');
         this.position.z += this.velocity.z * dt;
         this.collide('z');
+        } // end else (not in boat)
 
         if (!this.wasOnGround && this.onGround) {
             if (this.onLand) this.onLand();
@@ -245,7 +267,7 @@ export class Player {
 
         this.headBob = Math.sin(this.walkTimer * 8) * 0.06 * this.bobAmount;
 
-        this.targetFov = this.sprinting && isMoving ? this.baseFov + 12 : this.baseFov;
+        this.targetFov = this.scoped ? 30 : (this.sprinting && isMoving ? this.baseFov + 12 : this.baseFov);
         this.currentFov += (this.targetFov - this.currentFov) * Math.min(1, dt * 8);
         this.camera.fov = this.currentFov;
         this.camera.updateProjectionMatrix();
@@ -307,9 +329,10 @@ export class Player {
 
         const pos = this.camera.position.clone();
         const step = 0.05;
+        const reach = this.scoped ? SCOPE_REACH : REACH;
         let prev = pos.clone();
 
-        for (let t = 0; t < REACH; t += step) {
+        for (let t = 0; t < reach; t += step) {
             const point = pos.clone().add(dir.clone().multiplyScalar(t));
             const bx = Math.floor(point.x);
             const by = Math.floor(point.y);
@@ -369,5 +392,55 @@ export class Player {
 
         this.world.setBlock(px, py, pz, HOTBAR_BLOCKS[this.selectedBlock]);
         if (this.onPlace) this.onPlace(px, py, pz);
+    }
+
+    toggleScope() {
+        this.scoped = !this.scoped;
+        this.targetFov = this.scoped ? 30 : this.baseFov;
+        this.currentFov = this.camera.fov;
+        this.camera.fov = this.scoped ? 30 : this.baseFov;
+        this.camera.updateProjectionMatrix();
+    }
+
+    enterBoat() {
+        if (this.flying) return;
+        const below = this.world.getBlock(
+            Math.floor(this.position.x),
+            Math.floor(this.position.y - 0.5),
+            Math.floor(this.position.z)
+        );
+        if (below !== BLOCK.WATER) return;
+        this.inBoat = true;
+        this.boatYaw = this.yaw;
+    }
+
+    exitBoat() {
+        this.inBoat = false;
+    }
+
+    updateBoat(dt) {
+        if (!this.inBoat) return;
+        this.velocity.y = -1 * dt;
+
+        const forward = new THREE.Vector3(-Math.sin(this.boatYaw), 0, -Math.cos(this.boatYaw));
+        const right = new THREE.Vector3(Math.cos(this.boatYaw), 0, -Math.sin(this.boatYaw));
+        const move = new THREE.Vector3(0, 0, 0);
+        if (this.keys['KeyW']) move.add(forward);
+        if (this.keys['KeyS']) move.sub(forward);
+        if (this.keys['KeyD']) move.add(right);
+        if (this.keys['KeyA']) move.sub(right);
+        if (this.touchMoveX !== 0 || this.touchMoveZ !== 0) {
+            move.add(right.clone().multiplyScalar(this.touchMoveX));
+            move.add(forward.clone().multiplyScalar(this.touchMoveZ));
+        }
+        if (move.length() > 0) move.normalize().multiplyScalar(BOAT_SPEED);
+        this.velocity.x = move.x;
+        this.velocity.z = move.z;
+
+        this.yaw = this.boatYaw;
+        this.camera.rotation.y = this.yaw;
+
+        const waterY = 20.5;
+        if (this.position.y < waterY) this.position.y = waterY;
     }
 }

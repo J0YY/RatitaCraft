@@ -12,11 +12,11 @@ import { NetworkManager } from './network.js';
 import { RemotePlayerManager } from './remoteplayer.js';
 import { Minimap } from './minimap.js';
 import { askGLM } from './chat.js';
-import { saveWorld, loadWorldData, deleteWorld, populateLoadSelect } from './saveload.js';
-import { Chunk } from './chunk.js';
 import { AnimalManager } from './animals.js';
 import SimplexNoise from './noise.js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase-config.js';
+
+const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 0;
 
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x87CEEB);
@@ -102,6 +102,8 @@ const interactionEl = document.getElementById('interaction-popup');
 const interactionMenu = document.getElementById('interaction-menu');
 const chatLogEl = document.getElementById('chat-log');
 const playerListEl = document.getElementById('player-list');
+const touchControls = document.getElementById('touch-controls');
+const scopeOverlay = document.getElementById('scope-overlay');
 
 let interactionTarget = null;
 let interactionType = null;
@@ -217,14 +219,35 @@ menuEl.addEventListener('click', (e) => {
     if (e.target.closest('button, input, select')) return;
     e.stopPropagation();
     if (!network.ready) return;
-    renderer.domElement.requestPointerLock();
+    if (isMobile) {
+        startMobileGame();
+    } else {
+        renderer.domElement.requestPointerLock();
+    }
     sound.init();
     sound.resume();
 });
 
+function startMobileGame() {
+    locked = true;
+    menuEl.style.display = 'none';
+    crosshairEl.style.display = 'block';
+    hotbarEl.style.display = 'flex';
+    debugEl.style.display = 'block';
+    minimap.canvas.style.display = 'block';
+    chatLogEl.style.display = 'block';
+    playerListEl.style.display = 'block';
+    touchControls.style.display = 'block';
+    const hb = document.getElementById('hud-bars');
+    if (hb) hb.style.display = 'flex';
+    updatePlayerList();
+    document.body.requestFullscreen?.().catch(() => {});
+}
+
 document.addEventListener('pointerlockchange', () => {
     locked = !!document.pointerLockElement;
     if (interactionMenuOpen) return;
+    if (isMobile) return;
     menuEl.style.display = locked ? 'none' : 'flex';
     crosshairEl.style.display = locked ? 'block' : 'none';
     hotbarEl.style.display = locked ? 'flex' : 'none';
@@ -301,7 +324,7 @@ function openInteractionMenu() {
     if (chatSection) chatSection.style.display = (!isRat && !isAnimal) ? 'flex' : 'none';
 
     interactionMenu.style.display = 'block';
-    document.exitPointerLock();
+    if (!isMobile) document.exitPointerLock();
     setTimeout(() => {
         const chatInput = document.getElementById('chat-input');
         if (chatInput && !isRat && !isAnimal) chatInput.focus();
@@ -313,7 +336,7 @@ function closeInteractionMenu() {
     interactionTarget = null;
     interactionType = null;
     interactionMenuOpen = false;
-    renderer.domElement.requestPointerLock();
+    if (!isMobile) renderer.domElement.requestPointerLock();
 }
 
 interactionMenu.querySelectorAll('.im-btn').forEach(btn => {
@@ -434,6 +457,21 @@ document.addEventListener('keydown', (e) => {
             openInteractionMenu();
         }
     }
+    if (e.code === 'KeyV') {
+        player.toggleScope();
+        scopeOverlay.style.display = player.scoped ? 'block' : 'none';
+        crosshairEl.style.display = player.scoped ? 'none' : 'block';
+    }
+    if (e.code === 'KeyB') {
+        if (player.inBoat) {
+            player.exitBoat();
+            addChatMessage('Left boat');
+        } else {
+            player.enterBoat();
+            if (player.inBoat) addChatMessage('Rowing! Use WASD to move ⛵');
+            else addChatMessage('Stand on water to use boat');
+        }
+    }
     if (e.code === 'Escape' && interactionMenu.style.display === 'block') {
         closeInteractionMenu();
     }
@@ -514,59 +552,151 @@ function showInteraction(msg, forced = false) {
     }, forced ? 2000 : 500);
 }
 
-document.getElementById('btn-save').addEventListener('click', (e) => {
-    e.stopPropagation();
-    const name = saveWorld(world, player.position, world.seed);
-    if (name) {
-        document.getElementById('btn-save').textContent = 'Saved!';
-        populateLoadSelect();
-        setTimeout(() => { document.getElementById('btn-save').textContent = 'Save'; }, 1500);
-    } else {
-        document.getElementById('btn-save').textContent = 'Failed!';
-        setTimeout(() => { document.getElementById('btn-save').textContent = 'Save'; }, 1500);
-    }
-});
+// ── Touch Controls ──
 
-document.getElementById('btn-load').addEventListener('click', (e) => {
-    e.stopPropagation();
-    const ts = document.getElementById('load-select').value;
-    if (!ts) return;
-    const saves = JSON.parse(localStorage.getItem('ratitacraft_saves') || '[]');
-    const save = saves.find(s => s.timestamp === parseInt(ts));
-    if (!save) return;
+if (isMobile) {
+    const joystickZone = document.getElementById('joystick-zone');
+    const joystickThumb = document.getElementById('joystick-thumb');
+    const lookZone = document.getElementById('look-zone');
 
-    world.seed = save.seed;
-    world.noise = new SimplexNoise(save.seed);
-    world.noise2 = new SimplexNoise(save.seed + 1);
-    world.noise3 = new SimplexNoise(save.seed + 2);
-    world.noise4 = new SimplexNoise(save.seed + 3);
-    world.noise5 = new SimplexNoise(save.seed + 4);
-    world.noise6 = new SimplexNoise(save.seed + 5);
-    for (const chunk of world.chunks.values()) chunk.dispose(scene);
-    world.chunks.clear();
+    let joystickTouchId = null;
+    let joystickOriginX = 0, joystickOriginY = 0;
+    let lookTouchId = null;
+    let lookLastX = 0, lookLastY = 0;
 
-    const chunksData = loadWorldData(parseInt(ts));
-    if (chunksData) {
-        for (const cd of chunksData) {
-            const chunk = new Chunk(cd.cx, cd.cz, world);
-            chunk.blocks = new Uint8Array(cd.blocks);
-            chunk.dirty = true;
-            world.chunks.set(world.key(cd.cx, cd.cz), chunk);
+    joystickZone.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const t = e.changedTouches[0];
+        joystickTouchId = t.identifier;
+        const rect = joystickZone.getBoundingClientRect();
+        joystickOriginX = rect.left + rect.width / 2;
+        joystickOriginY = rect.top + rect.height / 2;
+    });
+
+    joystickZone.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        for (const t of e.changedTouches) {
+            if (t.identifier !== joystickTouchId) continue;
+            let dx = (t.clientX - joystickOriginX) / 45;
+            let dy = (t.clientY - joystickOriginY) / 45;
+            const len = Math.sqrt(dx * dx + dy * dy);
+            if (len > 1) { dx /= len; dy /= len; }
+            player.touchMoveX = dx;
+            player.touchMoveZ = -dy;
+            joystickThumb.style.transform = `translate(calc(-50% + ${dx * 40}px), calc(-50% + ${dy * 40}px))`;
         }
-    }
-    world.update(save.playerX, save.playerZ);
-    player.position.set(save.playerX, save.playerY, save.playerZ);
-});
+    });
 
-document.getElementById('btn-delete').addEventListener('click', (e) => {
-    e.stopPropagation();
-    const ts = document.getElementById('load-select').value;
-    if (!ts) return;
-    deleteWorld(parseInt(ts));
-    populateLoadSelect();
-});
+    const joystickEnd = (e) => {
+        for (const t of e.changedTouches) {
+            if (t.identifier === joystickTouchId) {
+                joystickTouchId = null;
+                player.touchMoveX = 0;
+                player.touchMoveZ = 0;
+                joystickThumb.style.transform = 'translate(-50%, -50%)';
+            }
+        }
+    };
+    joystickZone.addEventListener('touchend', joystickEnd);
+    joystickZone.addEventListener('touchcancel', joystickEnd);
 
-populateLoadSelect();
+    lookZone.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const t = e.changedTouches[0];
+        lookTouchId = t.identifier;
+        lookLastX = t.clientX;
+        lookLastY = t.clientY;
+    });
+
+    lookZone.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        for (const t of e.changedTouches) {
+            if (t.identifier !== lookTouchId) continue;
+            const dx = t.clientX - lookLastX;
+            const dy = t.clientY - lookLastY;
+            player.mouseDX += dx;
+            player.mouseDY += dy;
+            lookLastX = t.clientX;
+            lookLastY = t.clientY;
+        }
+    });
+
+    const lookEnd = (e) => {
+        for (const t of e.changedTouches) {
+            if (t.identifier === lookTouchId) lookTouchId = null;
+        }
+    };
+    lookZone.addEventListener('touchend', lookEnd);
+    lookZone.addEventListener('touchcancel', lookEnd);
+
+    // Touch buttons
+    const tbJump = document.getElementById('tb-jump');
+    tbJump.addEventListener('touchstart', (e) => { e.preventDefault(); player.touchJump = true; });
+    tbJump.addEventListener('touchend', (e) => { e.preventDefault(); player.touchJump = false; });
+    tbJump.addEventListener('touchcancel', (e) => { player.touchJump = false; });
+
+    document.getElementById('tb-break').addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (player.isDead) return;
+        player.breakBlock();
+        sound.resume();
+    });
+
+    document.getElementById('tb-place').addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (player.isDead) return;
+        player.placeBlock();
+        sound.resume();
+    });
+
+    document.getElementById('tb-scope').addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        player.toggleScope();
+        scopeOverlay.style.display = player.scoped ? 'block' : 'none';
+        crosshairEl.style.display = player.scoped ? 'none' : 'block';
+    });
+
+    document.getElementById('tb-boat').addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (player.inBoat) {
+            player.exitBoat();
+            addChatMessage('Left boat');
+        } else {
+            player.enterBoat();
+            if (player.inBoat) addChatMessage('Rowing! ⛵');
+            else addChatMessage('Stand on water to use boat');
+        }
+    });
+
+    document.getElementById('tb-eat').addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        player.eatFood();
+        sound.resume();
+    });
+
+    document.getElementById('tb-interact').addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (interactionMenu.style.display === 'block') {
+            closeInteractionMenu();
+        } else {
+            openInteractionMenu();
+        }
+    });
+
+    // Hotbar slot tapping
+    hotbarEl.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const slot = e.target.closest('.slot');
+        if (!slot) return;
+        const idx = Array.from(hotbarEl.children).indexOf(slot);
+        if (idx >= 0 && idx < HOTBAR_BLOCKS.length) {
+            player.selectedBlock = idx;
+            updateHotbar();
+        }
+    });
+}
+
+// ── Network callbacks ──
 
 network.onPlayerJoin = (peerId, name) => {
     remotePlayerManager.createPlayer(peerId, name);
@@ -616,7 +746,7 @@ network.connect(world.seed);
 
 network.onReady = () => {
     const prompt = document.getElementById('click-prompt');
-    if (prompt) prompt.innerHTML = 'click anywhere to play ✨';
+    if (prompt) prompt.innerHTML = isMobile ? 'tap anywhere to play ✨' : 'click anywhere to play ✨';
 };
 
 let lastTime = performance.now();
@@ -674,13 +804,13 @@ function gameLoop() {
 
         if (showInteraction._forced) {
         } else if (nearRat) {
-            showInteraction(`Press E → ${nearRat.name} ${nearRat.isKept ? '(following)' : ''} 🐀`);
+            showInteraction(`${isMobile ? 'Tap' : 'Press E'} → ${nearRat.name} ${nearRat.isKept ? '(following)' : ''} 🐀`);
         } else if (nearAnimal) {
-            showInteraction(`Press E → ${nearAnimal.type} 🍗 | Click to attack`);
+            showInteraction(`${isMobile ? 'Tap ⚔' : 'Press E'} → ${nearAnimal.type} 🍗`);
         } else if (nearPlayer) {
-            showInteraction(`Press E → ${nearPlayer.name} 🧑`);
+            showInteraction(`${isMobile ? 'Tap' : 'Press E'} → ${nearPlayer.name} 🧑`);
         } else if (nearAgent) {
-            showInteraction(`Press E → ${nearAgent.name} 🧑`);
+            showInteraction(`${isMobile ? 'Tap' : 'Press E'} → ${nearAgent.name} 🧑`);
         } else if (interactionEl.style.display === 'block') {
             interactionEl.style.display = 'none';
         }
@@ -712,7 +842,9 @@ function gameLoop() {
     const agents = agentManager.agents.length;
     const animals = animalManager.animals.length;
     const players = network.getPlayerCount();
-    debugEl.innerHTML = `FPS: ${fps}<br>XYZ: ${player.position.x.toFixed(1)} ${player.position.y.toFixed(1)} ${player.position.z.toFixed(1)}<br>Chunk: ${cx} ${cz}<br>Time: ${dayNight.getTimeString()}${player.flying ? '<br>FLYING' : ''}${player.inWater ? '<br>SWIMMING' : ''}<br>Rats: ${rats} | Agents: ${agents} | Animals: ${animals} | Players: ${players}${agentMsgStr}`;
+    const scopeStr = player.scoped ? ' | SCOPE' : '';
+    const boatStr = player.inBoat ? ' | BOAT' : '';
+    debugEl.innerHTML = `FPS: ${fps}<br>XYZ: ${player.position.x.toFixed(1)} ${player.position.y.toFixed(1)} ${player.position.z.toFixed(1)}<br>Chunk: ${cx} ${cz}<br>Time: ${dayNight.getTimeString()}${player.flying ? '<br>FLYING' : ''}${player.inWater ? '<br>SWIMMING' : ''}${boatStr}${scopeStr}<br>Rats: ${rats} | Agents: ${agents} | Animals: ${animals} | Players: ${players}${agentMsgStr}`;
 
     renderer.render(scene, camera);
 } catch (e) {

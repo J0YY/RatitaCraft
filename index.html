@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>RatitaCraft 💕</title>
     <link rel="stylesheet" href="style.css">
     <script type="importmap">
@@ -46,6 +46,8 @@
                         <span class="key">E</span><span>Interact</span>
                         <span class="key">T</span><span>Spawn villager</span>
                         <span class="key">F</span><span>Fly mode</span>
+                        <span class="key">V</span><span>Scope (zoom)</span>
+                        <span class="key">B</span><span>Boat (on water)</span>
                         <span class="key">Q</span><span>Eat food</span>
                         <span class="key">1-9</span><span>Hotbar</span>
                         <span class="key">ESC</span><span>Pause</span>
@@ -82,16 +84,6 @@
                     <p class="hint">auto-joins the shared world 💕</p>
                 </div>
 
-                <div class="panel">
-                    <h3>💾 World</h3>
-                    <div class="mp-buttons">
-                        <button id="btn-save" class="mp-btn">Save</button>
-                        <select id="load-select"><option value="">Load world...</option></select>
-                        <button id="btn-load" class="mp-btn">Load</button>
-                        <button id="btn-delete" class="mp-btn danger">Del</button>
-                    </div>
-                </div>
-
                 <div class="panel cute-panel">
                     <p>🐀 pet and feed rats to befriend them!</p>
                     <p>💕 use Keep to make a rat follow you</p>
@@ -99,11 +91,19 @@
                     <p>🍗 kill animals for meat, cook at campfire</p>
                     <p>🍎 break apple/banana trees for food</p>
                     <p>❤️ press Q to eat food and heal</p>
+                    <p>🔭 press V to scope and build far away</p>
+                    <p>⛵ press B on water to row a boat</p>
                 </div>
             </div>
         </div>
 
         <p id="click-prompt" class="click-prompt"><span class="loading-spinner"></span> Connecting to world...</p>
+    </div>
+
+    <div id="scope-overlay" style="display:none">
+        <div class="scope-circle"></div>
+        <div class="scope-cross scope-h"></div>
+        <div class="scope-cross scope-v"></div>
     </div>
 
     <div id="crosshair">
@@ -149,7 +149,26 @@
             <button id="chat-send" class="mp-btn">Send</button>
         </div>
     </div>
+
+    <div id="touch-controls" style="display:none">
+        <div id="joystick-zone">
+            <div id="joystick-base">
+                <div id="joystick-thumb"></div>
+            </div>
+        </div>
+        <div id="look-zone"></div>
+        <div id="touch-buttons">
+            <button class="touch-btn" id="tb-jump">⬆</button>
+            <button class="touch-btn" id="tb-break">⛏</button>
+            <button class="touch-btn" id="tb-place">🧱</button>
+            <button class="touch-btn" id="tb-scope">🔭</button>
+            <button class="touch-btn" id="tb-boat">⛵</button>
+            <button class="touch-btn" id="tb-eat">🍖</button>
+            <button class="touch-btn" id="tb-interact">💬</button>
+        </div>
+    </div>
+
     <div id="debug"></div>
-    <script type="module" src="js/main.js?v=9"></script>
+    <script type="module" src="js/main.js?v=10"></script>
 </body>
 </html>
