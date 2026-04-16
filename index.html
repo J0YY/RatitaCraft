@@ -48,6 +48,7 @@
                         <span class="key">F</span><span>Fly mode</span>
                         <span class="key">V</span><span>Scope (zoom)</span>
                         <span class="key">B</span><span>Boat (on water)</span>
+                        <span class="key">H</span><span>Horse (mount/dismount)</span>
                         <span class="key">Q</span><span>Eat food</span>
                         <span class="key">1-9</span><span>Hotbar</span>
                         <span class="key">ESC</span><span>Pause</span>
@@ -59,6 +60,17 @@
                     <div class="custom-row">
                         <label>Name</label>
                         <input id="player-name" type="text" value="Player" maxlength="16">
+                    </div>
+                    <div class="custom-row">
+                        <label>Hairstyle</label>
+                        <select id="hairstyle-select">
+                            <option value="0">Short</option>
+                            <option value="1">Spiky</option>
+                            <option value="2">Long</option>
+                            <option value="3">Mohawk</option>
+                            <option value="4">Curly</option>
+                            <option value="5">Bald</option>
+                        </select>
                     </div>
                     <div class="color-row">
                         <div class="color-pick">
@@ -93,6 +105,7 @@
                     <p>❤️ press Q to eat food and heal</p>
                     <p>🔭 press V to scope and build far away</p>
                     <p>⛵ press B on water to row a boat</p>
+                    <p>🐴 press H near a horse to ride it</p>
                 </div>
             </div>
         </div>
@@ -144,6 +157,7 @@
         <button class="im-btn rat-btn" data-action="feed">🧀 Feed</button>
         <button class="im-btn rat-btn" data-action="keep">💕 Keep</button>
         <button class="im-btn animal-btn" data-action="attack">⚔ Attack</button>
+        <button class="im-btn horse-btn" data-action="ride">🐴 Ride</button>
         <div class="im-chat agent-chat">
             <input id="chat-input" type="text" placeholder="Say something..." maxlength="120">
             <button id="chat-send" class="mp-btn">Send</button>
@@ -164,11 +178,12 @@
             <button class="touch-btn" id="tb-scope">🔭</button>
             <button class="touch-btn" id="tb-boat">⛵</button>
             <button class="touch-btn" id="tb-eat">🍖</button>
+            <button class="touch-btn" id="tb-horse">🐴</button>
             <button class="touch-btn" id="tb-interact">💬</button>
         </div>
     </div>
 
     <div id="debug"></div>
-    <script type="module" src="js/main.js?v=10"></script>
+    <script type="module" src="js/main.js?v=11"></script>
 </body>
 </html>

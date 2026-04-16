@@ -14,6 +14,7 @@ export class NetworkManager {
         this.onPlayerLeave = null;
         this.onSeedReceived = null;
         this.onInteraction = null;
+        this.onMount = null;
         this.onReady = null;
         this.syncTimer = 0;
         this.syncInterval = 1 / 20;
@@ -73,7 +74,7 @@ export class NetworkManager {
                 if (p.id === this.playerId) continue;
                 this.connections.set(p.id, { name: p.name });
                 this.createRemotePlayer(p.id, p.name);
-                if (this.onPlayerJoin) this.onPlayerJoin(p.id, p.name);
+                if (this.onPlayerJoin) this.onPlayerJoin(p.id, p.name, p.hairstyle);
             }
         });
 
@@ -104,10 +105,14 @@ export class NetworkManager {
             if (this.onInteraction) this.onInteraction(payload);
         });
 
+        this.channel.on('broadcast', { event: 'mount' }, ({ payload }) => {
+            if (this.onMount) this.onMount(payload);
+        });
+
         this.channel.subscribe(async (status) => {
             if (status === 'SUBSCRIBED') {
                 this.connected = true;
-                await this.channel.track({ id: this.playerId, name: this.playerNameFn() });
+                await this.channel.track({ id: this.playerId, name: this.playerNameFn(), hairstyle: parseInt(document.getElementById('hairstyle-select')?.value || '0') });
                 this.ready = true;
                 this.setStatus('Connected');
                 if (this.onReady) this.onReady();
@@ -238,7 +243,18 @@ export class NetworkManager {
             this.channel.send({
                 type: 'broadcast',
                 event: 'interaction',
-                payload: { action, targetType, targetName, message, from: fromName || 'Player' }
+                payload: { action, targetType, targetName, message, from: fromName || 'Player', id: this.playerId }
+            });
+        } catch (e) {}
+    }
+
+    sendMount(mounted) {
+        if (!this.connected) return;
+        try {
+            this.channel.send({
+                type: 'broadcast',
+                event: 'mount',
+                payload: { id: this.playerId, mounted }
             });
         } catch (e) {}
     }

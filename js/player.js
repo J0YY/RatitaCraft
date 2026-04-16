@@ -15,6 +15,9 @@ const EYE_HEIGHT = 1.62;
 const REACH = 7;
 const SCOPE_REACH = 50;
 const BOAT_SPEED = 8;
+const HORSE_SPEED = 10;
+const HORSE_JUMP = 7;
+const HORSE_EYE_OFFSET = 1.0;
 
 export class Player {
     constructor(camera, world) {
@@ -73,6 +76,9 @@ export class Player {
         this.scoped = false;
         this.inBoat = false;
         this.boatYaw = 0;
+
+        this.onHorse = false;
+        this.mountedHorse = null;
 
         this.touchMoveX = 0;
         this.touchMoveZ = 0;
@@ -183,7 +189,7 @@ export class Player {
         const right = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw));
 
         this.sprinting = !this.flying && (this.keys['ShiftLeft'] || this.keys['ShiftRight']);
-        const speed = this.flying ? FLY_SPEED : (this.sprinting ? SPRINT_SPEED : WALK_SPEED);
+        const speed = this.flying ? FLY_SPEED : this.onHorse ? HORSE_SPEED : (this.sprinting ? SPRINT_SPEED : WALK_SPEED);
 
         const move = new THREE.Vector3(0, 0, 0);
         if (this.keys['KeyW']) move.add(forward);
@@ -205,6 +211,23 @@ export class Player {
             this.position.x += this.velocity.x * dt;
             this.position.z += this.velocity.z * dt;
             this.position.y = 20.5;
+        } else if (this.onHorse) {
+            this.velocity.y += GRAVITY * dt;
+            if ((this.keys['Space'] || this.touchJump) && this.onGround) {
+                this.velocity.y = HORSE_JUMP;
+                this.onGround = false;
+                if (this.onJump) this.onJump();
+            }
+
+            this.wasOnGround = this.onGround;
+            this.onGround = false;
+
+            this.position.x += this.velocity.x * dt;
+            this.collide('x');
+            this.position.y += this.velocity.y * dt;
+            this.collide('y');
+            this.position.z += this.velocity.z * dt;
+            this.collide('z');
         } else {
 
         this.inWater = this.world.getBlock(
@@ -274,7 +297,7 @@ export class Player {
 
         this.camera.position.set(
             this.position.x,
-            this.position.y + EYE_HEIGHT + this.headBob,
+            this.position.y + EYE_HEIGHT + this.headBob + (this.onHorse ? HORSE_EYE_OFFSET : 0),
             this.position.z
         );
         this.raycast();
@@ -416,6 +439,21 @@ export class Player {
 
     exitBoat() {
         this.inBoat = false;
+    }
+
+    enterHorse(horse) {
+        if (this.flying || this.inBoat) return false;
+        this.onHorse = true;
+        this.mountedHorse = horse;
+        horse.mount();
+        return true;
+    }
+
+    exitHorse() {
+        this.onHorse = false;
+        const horse = this.mountedHorse;
+        this.mountedHorse = null;
+        return horse;
     }
 
     updateBoat(dt) {

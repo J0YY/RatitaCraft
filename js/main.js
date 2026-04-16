@@ -13,6 +13,7 @@ import { RemotePlayerManager } from './remoteplayer.js';
 import { Minimap } from './minimap.js';
 import { askGLM } from './chat.js';
 import { AnimalManager } from './animals.js';
+import { HorseManager } from './horses.js';
 import SimplexNoise from './noise.js';
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './supabase-config.js';
 
@@ -59,6 +60,7 @@ const remotePlayerManager = new RemotePlayerManager(scene);
 const network = new NetworkManager(world, player, getPlayerName, SUPABASE_URL, SUPABASE_ANON_KEY);
 const minimap = new Minimap(world);
 const animalManager = new AnimalManager(scene, world);
+const horseManager = new HorseManager(scene, world);
 
 const spawnPos = new THREE.Vector3(8, 50, 8);
 const startH = world.getHeight(8, 8);
@@ -281,6 +283,9 @@ function findInteractionTarget() {
     const nearPlayer = remotePlayerManager.getPlayerAt(checkPos, 3.5);
     if (nearPlayer) return { type: 'player', target: nearPlayer };
 
+    const nearHorse = horseManager.getHorseAt(checkPos, 3.5);
+    if (nearHorse) return { type: 'horse', target: nearHorse };
+
     return null;
 }
 
@@ -295,12 +300,14 @@ function openInteractionMenu() {
     const isRat = found.type === 'rat';
     const isAnimal = found.type === 'animal';
     const isPlayer = found.type === 'player';
+    const isHorse = found.type === 'horse';
     const title = interactionMenu.querySelector('.im-title');
-    const emoji = isRat ? '🐀' : isAnimal ? '🍗' : '🧑';
+    const emoji = isRat ? '🐀' : isAnimal ? '🍗' : isHorse ? '🐴' : '🧑';
     title.textContent = `${emoji} ${found.target.name || found.target.type}`;
 
-    const showAgentBtns = !isRat && !isAnimal;
+    const showAgentBtns = !isRat && !isAnimal && !isHorse;
     interactionMenu.querySelectorAll('.agent-btn').forEach(b => b.style.display = showAgentBtns ? 'block' : 'none');
+    interactionMenu.querySelectorAll('.horse-btn').forEach(b => b.style.display = isHorse ? 'block' : 'none');
     interactionMenu.querySelectorAll('.rat-btn').forEach(b => {
         if (isRat) {
             b.style.display = 'block';
@@ -321,7 +328,7 @@ function openInteractionMenu() {
     });
     interactionMenu.querySelectorAll('.animal-btn').forEach(b => b.style.display = isAnimal ? 'block' : 'none');
     const chatSection = interactionMenu.querySelector('.agent-chat');
-    if (chatSection) chatSection.style.display = (!isRat && !isAnimal) ? 'flex' : 'none';
+    if (chatSection) chatSection.style.display = (!isRat && !isAnimal && !isHorse) ? 'flex' : 'none';
 
     interactionMenu.style.display = 'block';
     if (!isMobile) document.exitPointerLock();
@@ -407,6 +414,18 @@ interactionMenu.querySelectorAll('.im-btn').forEach(btn => {
                 sound.playTone(300, 0.2, 'square', 0.06);
             }
             updateHealthBar();
+        } else if (interactionType === 'horse') {
+            if (player.onHorse) {
+                const horse = player.exitHorse();
+                if (horse) horse.dismount(player.position.x, player.position.y, player.position.z);
+                network.sendMount(false);
+                addChatMessage('Dismounted horse');
+            } else {
+                if (player.enterHorse(interactionTarget)) {
+                    network.sendMount(true);
+                    addChatMessage('Mounted horse! Use WASD to ride 🐴');
+                }
+            }
         }
         closeInteractionMenu();
     });
@@ -470,6 +489,29 @@ document.addEventListener('keydown', (e) => {
             player.enterBoat();
             if (player.inBoat) addChatMessage('Rowing! Use WASD to move ⛵');
             else addChatMessage('Stand on water to use boat');
+        }
+    }
+    if (e.code === 'KeyH') {
+        if (player.onHorse) {
+            const horse = player.exitHorse();
+            if (horse) {
+                horse.dismount(player.position.x, player.position.y, player.position.z);
+            }
+            network.sendMount(false);
+            addChatMessage('Dismounted horse');
+        } else {
+            const forward = new THREE.Vector3(0, 0, -1);
+            forward.applyQuaternion(camera.quaternion);
+            const checkPos = camera.position.clone().add(forward.multiplyScalar(4));
+            const nearHorse = horseManager.getHorseAt(checkPos, 4);
+            if (nearHorse) {
+                if (player.enterHorse(nearHorse)) {
+                    network.sendMount(true);
+                    addChatMessage('Mounted horse! Use WASD to ride 🐴');
+                }
+            } else {
+                addChatMessage('No horse nearby');
+            }
         }
     }
     if (e.code === 'Escape' && interactionMenu.style.display === 'block') {
@@ -674,6 +716,29 @@ if (isMobile) {
         sound.resume();
     });
 
+    document.getElementById('tb-horse').addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        if (player.onHorse) {
+            const horse = player.exitHorse();
+            if (horse) horse.dismount(player.position.x, player.position.y, player.position.z);
+            network.sendMount(false);
+            addChatMessage('Dismounted horse');
+        } else {
+            const forward = new THREE.Vector3(0, 0, -1);
+            forward.applyQuaternion(camera.quaternion);
+            const checkPos = camera.position.clone().add(forward.multiplyScalar(4));
+            const nearHorse = horseManager.getHorseAt(checkPos, 4);
+            if (nearHorse) {
+                if (player.enterHorse(nearHorse)) {
+                    network.sendMount(true);
+                    addChatMessage('Mounted horse! 🐴');
+                }
+            } else {
+                addChatMessage('No horse nearby');
+            }
+        }
+    });
+
     document.getElementById('tb-interact').addEventListener('touchstart', (e) => {
         e.preventDefault();
         if (interactionMenu.style.display === 'block') {
@@ -698,8 +763,8 @@ if (isMobile) {
 
 // ── Network callbacks ──
 
-network.onPlayerJoin = (peerId, name) => {
-    remotePlayerManager.createPlayer(peerId, name);
+network.onPlayerJoin = (peerId, name, hairstyle) => {
+    remotePlayerManager.createPlayer(peerId, name, hairstyle);
     updatePlayerList();
 };
 network.onPlayerLeave = (peerId) => {
@@ -722,6 +787,9 @@ network.onSeedReceived = (seed) => {
 
 network.onInteraction = (data) => {
     const fromName = data.from || 'Player';
+    if (data.id) {
+        remotePlayerManager.playAnimation(data.id, data.action);
+    }
     if (data.action === 'wave') {
         showInteraction(`${fromName} waves at you! 👋`, true);
         addChatMessage(`${fromName} waves at you`);
@@ -739,6 +807,15 @@ network.onInteraction = (data) => {
         addChatMessage(`${fromName}: ${data.message}`);
     }
 };
+
+network.onMount = (data) => {
+    if (data.id) {
+        remotePlayerManager.setMounted(data.id, data.mounted);
+    }
+};
+
+const hairstyleSelect = document.getElementById('hairstyle-select');
+if (hairstyleSelect) hairstyleSelect.value = String(Math.floor(Math.random() * 6));
 
 setupHotbar();
 updateHealthBar();
@@ -783,6 +860,7 @@ function gameLoop() {
     ratManager.update(dt, player.position);
     agentManager.update(dt, player.position);
     animalManager.update(dt, player.position);
+    horseManager.update(dt, player.position);
     network.update(dt, remotePlayerManager);
 
     const remotePositions = [];
@@ -801,12 +879,15 @@ function gameLoop() {
         const nearAgent = agentManager.getAgentAt(checkPos, 4);
         const nearAnimal = animalManager.getAnimalAt(checkPos, 3.5);
         const nearPlayer = remotePlayerManager.getPlayerAt(checkPos, 3.5);
+        const nearHorse = horseManager.getHorseAt(checkPos, 3.5);
 
         if (showInteraction._forced) {
         } else if (nearRat) {
             showInteraction(`${isMobile ? 'Tap' : 'Press E'} → ${nearRat.name} ${nearRat.isKept ? '(following)' : ''} 🐀`);
         } else if (nearAnimal) {
             showInteraction(`${isMobile ? 'Tap ⚔' : 'Press E'} → ${nearAnimal.type} 🍗`);
+        } else if (nearHorse) {
+            showInteraction(`${isMobile ? 'Tap 🐴' : 'Press H'} → Mount horse 🐴`);
         } else if (nearPlayer) {
             showInteraction(`${isMobile ? 'Tap' : 'Press E'} → ${nearPlayer.name} 🧑`);
         } else if (nearAgent) {
@@ -841,10 +922,12 @@ function gameLoop() {
     const rats = ratManager.rats.length;
     const agents = agentManager.agents.length;
     const animals = animalManager.animals.length;
+    const horses = horseManager.horses.length;
     const players = network.getPlayerCount();
     const scopeStr = player.scoped ? ' | SCOPE' : '';
     const boatStr = player.inBoat ? ' | BOAT' : '';
-    debugEl.innerHTML = `FPS: ${fps}<br>XYZ: ${player.position.x.toFixed(1)} ${player.position.y.toFixed(1)} ${player.position.z.toFixed(1)}<br>Chunk: ${cx} ${cz}<br>Time: ${dayNight.getTimeString()}${player.flying ? '<br>FLYING' : ''}${player.inWater ? '<br>SWIMMING' : ''}${boatStr}${scopeStr}<br>Rats: ${rats} | Agents: ${agents} | Animals: ${animals} | Players: ${players}${agentMsgStr}`;
+    const horseStr = player.onHorse ? ' | HORSE' : '';
+    debugEl.innerHTML = `FPS: ${fps}<br>XYZ: ${player.position.x.toFixed(1)} ${player.position.y.toFixed(1)} ${player.position.z.toFixed(1)}<br>Chunk: ${cx} ${cz}<br>Time: ${dayNight.getTimeString()}${player.flying ? '<br>FLYING' : ''}${player.inWater ? '<br>SWIMMING' : ''}${boatStr}${horseStr}${scopeStr}<br>Rats: ${rats} | Agents: ${agents} | Animals: ${animals} | Horses: ${horses} | Players: ${players}${agentMsgStr}`;
 
     renderer.render(scene, camera);
 } catch (e) {
