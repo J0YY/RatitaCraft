@@ -56,6 +56,7 @@ export class NetworkManager {
         this.setStatus('Connecting...');
 
         await this.syncSeed(seed);
+        await new Promise(r => setTimeout(r, 100));
         await this.loadBlocks();
 
         this.channel = this.sb.channel('ratitacraft', {
@@ -124,9 +125,11 @@ export class NetworkManager {
                 const remoteSeed = parseInt(data.value);
                 if (this.onSeedReceived) this.onSeedReceived(remoteSeed);
             } else {
+                const seedToStore = localSeed != null ? localSeed : Math.floor(Math.random() * 999999);
                 await this.sb
                     .from('world_config')
-                    .upsert({ key: 'seed', value: String(localSeed ?? 42) });
+                    .upsert({ key: 'seed', value: String(seedToStore) });
+                if (this.onSeedReceived) this.onSeedReceived(seedToStore);
             }
         } catch (e) {
             console.warn('Seed sync failed:', e);
@@ -164,6 +167,10 @@ export class NetworkManager {
 
     removeRemotePlayer(peerId) {
         this.remotePlayers.delete(peerId);
+    }
+
+    getPlayerCount() {
+        return this.connected ? 1 + this.remotePlayers.size : 0;
     }
 
     broadcastBlock(x, y, z, blockType) {

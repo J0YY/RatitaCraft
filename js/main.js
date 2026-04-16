@@ -140,7 +140,7 @@ function updatePlayerList() {
     playerListEl.innerHTML = '';
     const title = document.createElement('div');
     title.className = 'pl-title';
-    title.textContent = `Players (${1 + network.connections.size})`;
+    title.textContent = `Players (${network.getPlayerCount()})`;
     playerListEl.appendChild(title);
     const self = document.createElement('div');
     self.className = 'pl-name self';
@@ -705,7 +705,7 @@ function gameLoop() {
     const rats = ratManager.rats.length;
     const agents = agentManager.agents.length;
     const animals = animalManager.animals.length;
-    const players = network.connections.size;
+    const players = network.getPlayerCount();
     debugEl.innerHTML = `FPS: ${fps}<br>XYZ: ${player.position.x.toFixed(1)} ${player.position.y.toFixed(1)} ${player.position.z.toFixed(1)}<br>Chunk: ${cx} ${cz}<br>Time: ${dayNight.getTimeString()}${player.flying ? '<br>FLYING' : ''}${player.inWater ? '<br>SWIMMING' : ''}<br>Rats: ${rats} | Agents: ${agents} | Animals: ${animals} | Players: ${players}${agentMsgStr}`;
 
     renderer.render(scene, camera);
